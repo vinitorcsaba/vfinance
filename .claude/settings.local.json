@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "mcp__arcade-linear__Linear_CreateIssue",
+      "mcp__arcade-linear__Linear_CreateIssueRelation",
+      "mcp__arcade-linear__Linear_ListProjects",
+      "mcp__arcade-linear__Linear_ListIssues",
+      "mcp__arcade-linear__Github_ListIssues",
+      "mcp__arcade-linear__Linear_TransitionIssueState",
+      "Bash(python -m venv:*)",
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nScaffold monorepo with FastAPI backend and React frontend \\(FIN-2\\)\n\nSet up backend \\(FastAPI, SQLAlchemy, Alembic, yfinance\\) and frontend\n\\(React + Vite + TypeScript + Tailwind CSS v4 + Shadcn/ui\\) with Vite\nproxy, path aliases, and .env.example.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(../venv/Scripts/uvicorn:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Dockerfile and .dockerignore for single-host deployment\n\nMulti-stage build: Node builds the React frontend, then Python\nserves both the API and the built SPA via a single uvicorn process.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git status:*)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
