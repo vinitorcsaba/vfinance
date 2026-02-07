@@ -45,7 +45,15 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **API pattern**: All API routes live under `/api/v1`. Vite dev server proxies `/api` to `localhost:8000` so frontend code always uses relative paths like `/api/v1/...`.
 
-**Database**: SQLite at `data/vfinance.db` (gitignored). SQLAlchemy ORM + Alembic migrations (not yet scaffolded). The `data/` directory is created automatically. Config via `pydantic-settings` in `backend/app/config.py`, reads from `.env`.
+**Database**: SQLite at `data/vfinance.db` (gitignored). SQLAlchemy ORM + Alembic migrations in `backend/alembic/`. The `data/` directory is created automatically. Config via `pydantic-settings` in `backend/app/config.py`, reads from `.env`.
+
+**ORM Models** (in `backend/app/models/`):
+- `StockHolding` — ticker (unique), shares (float), display_name, timestamps
+- `ManualHolding` — name, value (float), currency (RON/EUR/USD), timestamps
+- `Snapshot` — taken_at, total_value_ron, exported_to_sheets, sheets_url; has `items` relationship
+- `SnapshotItem` — FK to snapshot, holding_type, name, shares, price, value, currency
+
+**Alembic**: Config in `backend/alembic.ini`, `env.py` reads DB URL from `app.config.settings`. Run migrations from project root: `python -m alembic -c backend/alembic.ini upgrade head`
 
 **Key directories**:
 - `backend/app/models/` — SQLAlchemy ORM models
