@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.routers.holdings import router as holdings_router
+from app.routers.prices import router as prices_router
 
 
 @asynccontextmanager
@@ -26,6 +27,7 @@ app.add_middleware(
 
 
 app.include_router(holdings_router)
+app.include_router(prices_router)
 
 
 @app.get("/api/v1/health")
