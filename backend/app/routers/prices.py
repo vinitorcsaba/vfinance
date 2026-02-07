@@ -1,0 +1,21 @@
+from fastapi import APIRouter, HTTPException, Query
+
+from app.schemas.price import PriceLookupResponse
+from app.services.price import lookup_ticker
+
+router = APIRouter(prefix="/api/v1/prices", tags=["prices"])
+
+
+@router.get("/lookup", response_model=PriceLookupResponse)
+def price_lookup(ticker: str = Query(..., min_length=1, description="Stock ticker symbol")):
+    """Validate a ticker and return its current price. Used by the add-stock form."""
+    try:
+        result = lookup_ticker(ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return PriceLookupResponse(
+        ticker=result.ticker,
+        price=result.price,
+        currency=result.currency,
+        name=result.name,
+    )
