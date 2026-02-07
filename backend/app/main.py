@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.routers.holdings import router as holdings_router
+from app.routers.portfolio import router as portfolio_router
 from app.routers.prices import router as prices_router
 
 
@@ -27,6 +28,7 @@ app.add_middleware(
 
 
 app.include_router(holdings_router)
+app.include_router(portfolio_router)
 app.include_router(prices_router)
 
 
