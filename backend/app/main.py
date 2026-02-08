@@ -10,11 +10,15 @@ from app.routers.holdings import router as holdings_router
 from app.routers.portfolio import router as portfolio_router
 from app.routers.prices import router as prices_router
 from app.routers.snapshots import router as snapshots_router
+from app.routers.backup import router as backup_router
+from app.services.spaces import download_db
 import app.models  # noqa: F401 — register ORM models with Base.metadata
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Restore DB from cloud before creating tables (so create_all is a no-op if DB exists)
+    download_db()
     # Startup: ensure all tables exist (idempotent, works alongside Alembic)
     Base.metadata.create_all(bind=engine)
     yield
@@ -35,6 +39,7 @@ app.include_router(holdings_router)
 app.include_router(portfolio_router)
 app.include_router(prices_router)
 app.include_router(snapshots_router)
+app.include_router(backup_router)
 
 
 @app.get("/api/v1/health")
