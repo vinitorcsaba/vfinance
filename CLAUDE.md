@@ -48,8 +48,9 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 **Database**: SQLite at `data/vfinance.db` (gitignored). SQLAlchemy ORM + Alembic migrations in `backend/alembic/`. The `data/` directory is created automatically. Config via `pydantic-settings` in `backend/app/config.py`, reads from `.env`.
 
 **ORM Models** (in `backend/app/models/`):
-- `StockHolding` — ticker (unique), shares (float), display_name, timestamps
-- `ManualHolding` — name, value (float), currency (RON/EUR/USD), timestamps
+- `StockHolding` — ticker (unique), shares (float), currency, display_name, timestamps; has `labels` relationship
+- `ManualHolding` — name, value (float), currency (RON/EUR/USD), timestamps; has `labels` relationship
+- `Label` — name (unique, max 50), color (hex, nullable), created_at; linked via junction tables
 - `Snapshot` — taken_at, total_value_ron, exported_to_sheets, sheets_url; has `items` relationship
 - `SnapshotItem` — FK to snapshot, holding_type, name, shares, price, value, currency
 
@@ -58,7 +59,7 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 **Key directories**:
 - `backend/app/models/` — SQLAlchemy ORM models
 - `backend/app/schemas/` — Pydantic request/response schemas
-- `backend/app/routers/` — FastAPI route handlers
+- `backend/app/routers/` — FastAPI route handlers (`holdings`, `portfolio`, `snapshots`, `labels`)
 - `backend/app/services/` — Business logic (price fetching, sheets export, scheduler)
 - `frontend/src/` — React app, `@/` alias maps to `src/`
 
