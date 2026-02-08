@@ -29,6 +29,7 @@ class StockHoldingRead(BaseModel):
     id: int
     ticker: str
     shares: float
+    currency: str | None
     display_name: str | None
     created_at: datetime
     updated_at: datetime

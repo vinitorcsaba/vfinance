@@ -134,6 +134,7 @@ export function HoldingsPage() {
                 <TableRow>
                   <TableHead>Ticker</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Currency</TableHead>
                   <TableHead className="text-right">Shares</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -145,6 +146,9 @@ export function HoldingsPage() {
                       <Badge variant="secondary">{stock.ticker}</Badge>
                     </TableCell>
                     <TableCell>{stock.display_name ?? "—"}</TableCell>
+                    <TableCell>
+                      {stock.currency ? <Badge variant="outline">{stock.currency}</Badge> : "—"}
+                    </TableCell>
                     <TableCell className="text-right">{stock.shares}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
