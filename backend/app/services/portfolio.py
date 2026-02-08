@@ -70,6 +70,7 @@ def build_portfolio(db: Session) -> dict:
             "value": value,
             "currency": currency,
             "value_ron": value_ron,
+            "labels": [{"id": l.id, "name": l.name, "color": l.color} for l in stock.labels],
         })
 
     # Process manual holdings
@@ -89,6 +90,7 @@ def build_portfolio(db: Session) -> dict:
             "value": manual.value,
             "currency": currency,
             "value_ron": value_ron,
+            "labels": [{"id": l.id, "name": l.name, "color": l.color} for l in manual.labels],
         })
 
     # Build currency totals

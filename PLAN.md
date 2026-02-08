@@ -99,8 +99,8 @@ vfinance/
 | 13 | FIN-14 | Handle Spaces 403 on missing object | Medium | Gracefully handle 403 errors from DO Spaces when object doesn't exist |
 | 14 | FIN-15 | Currency field on stock holding dialog | Medium | Show auto-fetched currency as editable dropdown in stock dialog; no migration needed |
 | 15 | FIN-16 | Add shares/value to existing holdings | Medium | "+" button on holding rows to increment shares/value instead of editing; new API endpoints |
-| 16 | FIN-17 | Labels system for holdings | Medium | Create/assign labels for categorization; new Label model + junction tables; migration required |
-| 17 | FIN-18 | Dashboard currency selector and grouping | Medium | Choose display currency for totals/charts, group by currency toggle; frontend-only |
+| 16 | FIN-17 | Labels system for holdings | Medium | ✅ Create/assign labels for categorization; new Label model + junction tables; migration required |
+| 17 | FIN-18 | Dashboard currency selector and grouping | Medium | ✅ Choose display currency for totals/charts, group by currency toggle; frontend-only |
 
 Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 (sequenced to avoid merge conflicts in shared files).
 

@@ -16,6 +16,8 @@ import { ManualHoldingDialog } from "@/components/ManualHoldingDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { AddSharesDialog } from "@/components/AddSharesDialog";
 import { AddValueDialog } from "@/components/AddValueDialog";
+import { LabelManager } from "@/components/LabelManager";
+import { LabelAssignPopover, LabelBadges } from "@/components/LabelAssignPopover";
 import {
   getStockHoldings,
   getManualHoldings,
@@ -128,6 +130,8 @@ export function HoldingsPage() {
         </div>
       )}
 
+      <LabelManager />
+
       {/* Stock Holdings */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -154,6 +158,7 @@ export function HoldingsPage() {
                 <TableRow>
                   <TableHead>Ticker</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Labels</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead className="text-right">Shares</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
@@ -166,6 +171,17 @@ export function HoldingsPage() {
                       <Badge variant="secondary">{stock.ticker}</Badge>
                     </TableCell>
                     <TableCell>{stock.display_name ?? "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <LabelBadges labels={stock.labels ?? []} />
+                        <LabelAssignPopover
+                          holdingType="stock"
+                          holdingId={stock.id}
+                          currentLabels={stock.labels ?? []}
+                          onAssigned={fetchAll}
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {stock.currency ? <Badge variant="outline">{stock.currency}</Badge> : "—"}
                     </TableCell>
@@ -238,6 +254,7 @@ export function HoldingsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Labels</TableHead>
                   <TableHead className="text-right">Value</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
@@ -247,6 +264,17 @@ export function HoldingsPage() {
                 {manuals.map((manual) => (
                   <TableRow key={manual.id}>
                     <TableCell>{manual.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <LabelBadges labels={manual.labels ?? []} />
+                        <LabelAssignPopover
+                          holdingType="manual"
+                          holdingId={manual.id}
+                          currentLabels={manual.labels ?? []}
+                          onAssigned={fetchAll}
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       {manual.value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </TableCell>

@@ -1,3 +1,5 @@
+import type { Label } from "./labels";
+
 export type Currency = "RON" | "EUR" | "USD";
 
 export interface StockHolding {
@@ -6,6 +8,7 @@ export interface StockHolding {
   shares: number;
   currency: string | null;
   display_name: string | null;
+  labels: Label[];
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +40,7 @@ export interface ManualHolding {
   name: string;
   value: number;
   currency: Currency;
+  labels: Label[];
   created_at: string;
   updated_at: string;
 }

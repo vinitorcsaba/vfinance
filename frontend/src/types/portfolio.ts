@@ -8,6 +8,7 @@ export interface HoldingDetail {
   value: number;
   currency: string;
   value_ron: number;
+  labels: { id: number; name: string; color: string | null }[];
 }
 
 export interface CurrencyTotal {

@@ -11,6 +11,7 @@ class HoldingDetail(BaseModel):
     value: float
     currency: str
     value_ron: float
+    labels: list[dict] = []
 
 
 class CurrencyTotal(BaseModel):

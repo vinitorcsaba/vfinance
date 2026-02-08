@@ -1,9 +1,10 @@
 from datetime import datetime
 
 from sqlalchemy import Float, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.label import Label, stock_holding_labels, manual_holding_labels
 
 
 class StockHolding(Base):
@@ -17,6 +18,8 @@ class StockHolding(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
+    labels: Mapped[list[Label]] = relationship(secondary=stock_holding_labels, lazy="selectin")
+
 
 class ManualHolding(Base):
     __tablename__ = "manual_holdings"
@@ -27,3 +30,5 @@ class ManualHolding(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="RON")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    labels: Mapped[list[Label]] = relationship(secondary=manual_holding_labels, lazy="selectin")
