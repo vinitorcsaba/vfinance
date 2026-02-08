@@ -16,13 +16,23 @@ class Currency(str, Enum):
 class StockHoldingCreate(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=20)
     shares: float = Field(..., gt=0)
+    currency: Currency | None = None
     display_name: str | None = Field(None, max_length=100)
 
 
 class StockHoldingUpdate(BaseModel):
     ticker: str | None = Field(None, min_length=1, max_length=20)
     shares: float | None = Field(None, gt=0)
+    currency: Currency | None = None
     display_name: str | None = Field(None, max_length=100)
+
+
+class StockAddShares(BaseModel):
+    shares: float = Field(..., gt=0)
+
+
+class ManualAddValue(BaseModel):
+    value: float = Field(..., gt=0)
 
 
 class StockHoldingRead(BaseModel):

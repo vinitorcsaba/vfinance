@@ -11,19 +11,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { lookupTicker } from "@/api/holdings";
-import type { StockHolding, PriceLookupResponse } from "@/types/holdings";
+import type { Currency, StockHolding, PriceLookupResponse } from "@/types/holdings";
+
+const CURRENCIES: Currency[] = ["RON", "EUR", "USD"];
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { ticker: string; shares: number; display_name?: string }) => Promise<void>;
+  onSubmit: (data: { ticker: string; shares: number; currency?: Currency | null; display_name?: string }) => Promise<void>;
   editing?: StockHolding | null;
 }
 
 export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Props) {
   const [ticker, setTicker] = useState("");
   const [shares, setShares] = useState("");
+  const [currency, setCurrency] = useState<Currency | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [tickerInfo, setTickerInfo] = useState<PriceLookupResponse | null>(null);
   const [validating, setValidating] = useState(false);
@@ -36,12 +46,14 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
       if (editing) {
         setTicker(editing.ticker);
         setShares(String(editing.shares));
+        setCurrency((editing.currency as Currency) ?? null);
         setDisplayName(editing.display_name ?? "");
         setTickerInfo(null);
         setTickerError("");
       } else {
         setTicker("");
         setShares("");
+        setCurrency(null);
         setDisplayName("");
         setTickerInfo(null);
         setTickerError("");
@@ -58,6 +70,9 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
     try {
       const result = await lookupTicker(ticker.trim());
       setTickerInfo(result);
+      if (result.currency && !currency) {
+        setCurrency(result.currency as Currency);
+      }
       if (result.name && !displayName) {
         setDisplayName(result.name);
       }
@@ -78,6 +93,7 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
       await onSubmit({
         ticker: ticker.trim().toUpperCase(),
         shares: Number(shares),
+        currency: currency ?? undefined,
         display_name: displayName.trim() || undefined,
       });
       onOpenChange(false);
@@ -140,6 +156,25 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
               value={shares}
               onChange={(e) => setShares(e.target.value)}
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="currency">Currency</Label>
+            <Select
+              value={currency ?? ""}
+              onValueChange={(v) => setCurrency(v as Currency)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Auto-detect" />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2">

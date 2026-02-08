@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { PencilIcon, PlusIcon, Trash2Icon, Loader2Icon } from "lucide-react";
+import { PencilIcon, PlusCircleIcon, PlusIcon, Trash2Icon, Loader2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import {
 import { StockHoldingDialog } from "@/components/StockHoldingDialog";
 import { ManualHoldingDialog } from "@/components/ManualHoldingDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { AddSharesDialog } from "@/components/AddSharesDialog";
+import { AddValueDialog } from "@/components/AddValueDialog";
 import {
   getStockHoldings,
   getManualHoldings,
@@ -23,6 +25,8 @@ import {
   createManualHolding,
   updateManualHolding,
   deleteManualHolding,
+  addStockShares,
+  addManualValue,
 } from "@/api/holdings";
 import type { StockHolding, ManualHolding, Currency } from "@/types/holdings";
 
@@ -42,6 +46,8 @@ export function HoldingsPage() {
     id: number;
     name: string;
   } | null>(null);
+  const [addSharesTarget, setAddSharesTarget] = useState<StockHolding | null>(null);
+  const [addValueTarget, setAddValueTarget] = useState<ManualHolding | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -61,7 +67,7 @@ export function HoldingsPage() {
   }, [fetchAll]);
 
   // Stock CRUD
-  async function handleStockSubmit(data: { ticker: string; shares: number; display_name?: string }) {
+  async function handleStockSubmit(data: { ticker: string; shares: number; currency?: Currency | null; display_name?: string }) {
     if (editingStock) {
       await updateStockHolding(editingStock.id, data);
     } else {
@@ -89,6 +95,20 @@ export function HoldingsPage() {
       await deleteManualHolding(deleteTarget.id);
     }
     setDeleteTarget(null);
+    await fetchAll();
+  }
+
+  async function handleAddShares(shares: number) {
+    if (!addSharesTarget) return;
+    await addStockShares(addSharesTarget.id, { shares });
+    setAddSharesTarget(null);
+    await fetchAll();
+  }
+
+  async function handleAddValue(value: number) {
+    if (!addValueTarget) return;
+    await addManualValue(addValueTarget.id, { value });
+    setAddValueTarget(null);
     await fetchAll();
   }
 
@@ -152,6 +172,14 @@ export function HoldingsPage() {
                     <TableCell className="text-right">{stock.shares}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => setAddSharesTarget(stock)}
+                          title="Add shares"
+                        >
+                          <PlusCircleIcon />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon-xs"
@@ -230,6 +258,14 @@ export function HoldingsPage() {
                         <Button
                           variant="ghost"
                           size="icon-xs"
+                          onClick={() => setAddValueTarget(manual)}
+                          title="Add value"
+                        >
+                          <PlusCircleIcon />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => {
                             setEditingManual(manual);
                             setManualDialogOpen(true);
@@ -280,6 +316,22 @@ export function HoldingsPage() {
         }}
         onConfirm={handleDelete}
         name={deleteTarget?.name ?? ""}
+      />
+      <AddSharesDialog
+        open={!!addSharesTarget}
+        onOpenChange={(open) => {
+          if (!open) setAddSharesTarget(null);
+        }}
+        stock={addSharesTarget}
+        onSubmit={handleAddShares}
+      />
+      <AddValueDialog
+        open={!!addValueTarget}
+        onOpenChange={(open) => {
+          if (!open) setAddValueTarget(null);
+        }}
+        holding={addValueTarget}
+        onSubmit={handleAddValue}
       />
     </div>
   );

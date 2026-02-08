@@ -13,13 +13,23 @@ export interface StockHolding {
 export interface StockHoldingCreate {
   ticker: string;
   shares: number;
+  currency?: Currency | null;
   display_name?: string | null;
 }
 
 export interface StockHoldingUpdate {
   ticker?: string;
   shares?: number;
+  currency?: Currency | null;
   display_name?: string | null;
+}
+
+export interface StockAddShares {
+  shares: number;
+}
+
+export interface ManualAddValue {
+  value: number;
 }
 
 export interface ManualHolding {

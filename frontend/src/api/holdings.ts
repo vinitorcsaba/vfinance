@@ -2,9 +2,11 @@ import type {
   StockHolding,
   StockHoldingCreate,
   StockHoldingUpdate,
+  StockAddShares,
   ManualHolding,
   ManualHoldingCreate,
   ManualHoldingUpdate,
+  ManualAddValue,
   PriceLookupResponse,
 } from "@/types/holdings";
 
@@ -46,6 +48,13 @@ export function deleteStockHolding(id: number): Promise<void> {
   return request(`${BASE}/holdings/stocks/${id}`, { method: "DELETE" });
 }
 
+export function addStockShares(id: number, data: StockAddShares): Promise<StockHolding> {
+  return request(`${BASE}/holdings/stocks/${id}/add-shares`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 // --- Manual Holdings ---
 
 export function getManualHoldings(): Promise<ManualHolding[]> {
@@ -68,6 +77,13 @@ export function updateManualHolding(id: number, data: ManualHoldingUpdate): Prom
 
 export function deleteManualHolding(id: number): Promise<void> {
   return request(`${BASE}/holdings/manual/${id}`, { method: "DELETE" });
+}
+
+export function addManualValue(id: number, data: ManualAddValue): Promise<ManualHolding> {
+  return request(`${BASE}/holdings/manual/${id}/add-value`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 // --- Price Lookup ---

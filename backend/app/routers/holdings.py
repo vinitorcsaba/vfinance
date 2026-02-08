@@ -5,9 +5,11 @@ from app.database import get_db
 from app.models.holding import ManualHolding, StockHolding
 from app.services.price import lookup_ticker, normalize_ticker
 from app.schemas.holding import (
+    ManualAddValue,
     ManualHoldingCreate,
     ManualHoldingRead,
     ManualHoldingUpdate,
+    StockAddShares,
     StockHoldingCreate,
     StockHoldingRead,
     StockHoldingUpdate,
@@ -30,13 +32,16 @@ def create_stock(body: StockHoldingCreate, db: Session = Depends(get_db)):
     existing = db.query(StockHolding).filter(StockHolding.ticker == normalized).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Stock with ticker '{normalized}' already exists")
-    # Auto-populate currency from yfinance
-    currency = None
-    try:
-        price_info = lookup_ticker(normalized)
-        currency = price_info.currency
-    except ValueError:
-        pass  # ticker not found — leave currency as None
+    if body.currency is not None:
+        currency = body.currency.value
+    else:
+        # Auto-populate currency from yfinance
+        currency = None
+        try:
+            price_info = lookup_ticker(normalized)
+            currency = price_info.currency
+        except ValueError:
+            pass
 
     stock = StockHolding(
         ticker=normalized,
@@ -56,16 +61,30 @@ def update_stock(stock_id: int, body: StockHoldingUpdate, db: Session = Depends(
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
     update_data = body.model_dump(exclude_unset=True)
+    if "currency" in update_data and update_data["currency"] is not None:
+        update_data["currency"] = update_data["currency"].value
     if "ticker" in update_data:
         update_data["ticker"] = normalize_ticker(update_data["ticker"])
-        # Re-fetch currency for the new ticker
-        try:
-            price_info = lookup_ticker(update_data["ticker"])
-            update_data["currency"] = price_info.currency
-        except ValueError:
-            update_data["currency"] = None
+        # Only re-fetch currency if no explicit override was provided
+        if "currency" not in update_data:
+            try:
+                price_info = lookup_ticker(update_data["ticker"])
+                update_data["currency"] = price_info.currency
+            except ValueError:
+                update_data["currency"] = None
     for key, val in update_data.items():
         setattr(stock, key, val)
+    db.commit()
+    db.refresh(stock)
+    return stock
+
+
+@router.post("/stocks/{stock_id}/add-shares", response_model=StockHoldingRead)
+def add_stock_shares(stock_id: int, body: StockAddShares, db: Session = Depends(get_db)):
+    stock = db.get(StockHolding, stock_id)
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock holding not found")
+    stock.shares += body.shares
     db.commit()
     db.refresh(stock)
     return stock
@@ -123,3 +142,14 @@ def delete_manual(holding_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Manual holding not found")
     db.delete(holding)
     db.commit()
+
+
+@router.post("/manual/{holding_id}/add-value", response_model=ManualHoldingRead)
+def add_manual_value(holding_id: int, body: ManualAddValue, db: Session = Depends(get_db)):
+    holding = db.get(ManualHolding, holding_id)
+    if not holding:
+        raise HTTPException(status_code=404, detail="Manual holding not found")
+    holding.value += body.value
+    db.commit()
+    db.refresh(holding)
+    return holding
