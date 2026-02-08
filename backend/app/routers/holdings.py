@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.holding import ManualHolding, StockHolding
-from app.services.price import normalize_ticker
+from app.services.price import lookup_ticker, normalize_ticker
 from app.schemas.holding import (
     ManualHoldingCreate,
     ManualHoldingRead,
@@ -30,9 +30,18 @@ def create_stock(body: StockHoldingCreate, db: Session = Depends(get_db)):
     existing = db.query(StockHolding).filter(StockHolding.ticker == normalized).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Stock with ticker '{normalized}' already exists")
+    # Auto-populate currency from yfinance
+    currency = None
+    try:
+        price_info = lookup_ticker(normalized)
+        currency = price_info.currency
+    except ValueError:
+        pass  # ticker not found — leave currency as None
+
     stock = StockHolding(
         ticker=normalized,
         shares=body.shares,
+        currency=currency,
         display_name=body.display_name,
     )
     db.add(stock)
@@ -49,6 +58,12 @@ def update_stock(stock_id: int, body: StockHoldingUpdate, db: Session = Depends(
     update_data = body.model_dump(exclude_unset=True)
     if "ticker" in update_data:
         update_data["ticker"] = normalize_ticker(update_data["ticker"])
+        # Re-fetch currency for the new ticker
+        try:
+            price_info = lookup_ticker(update_data["ticker"])
+            update_data["currency"] = price_info.currency
+        except ValueError:
+            update_data["currency"] = None
     for key, val in update_data.items():
         setattr(stock, key, val)
     db.commit()

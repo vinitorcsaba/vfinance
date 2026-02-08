@@ -12,6 +12,7 @@ class StockHolding(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ticker: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     shares: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str | None] = mapped_column(String(3))
     display_name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
