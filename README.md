@@ -28,4 +28,4 @@ Prints a table with the current price, currency, and market capitalization for e
 |--------|-------|----------|----------------|
 | SNP    | ...   | RON      | ...             |
 | TLV    | ...   | RON      | ...             |
-| ...    | ...   | ...      | ...             |
+| CNDX   | ...   | USD      | ...             |
