@@ -8,6 +8,62 @@ logger = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = 60
 
+# Map common exchange abbreviations to yfinance suffixes.
+# Users type the left side; yfinance expects the right side.
+# Correct yfinance suffixes (e.g. .L, .DE, .PA) pass through unchanged.
+_EXCHANGE_SUFFIX_MAP = {
+    # UK / London Stock Exchange → .L
+    ".UK": ".L",
+    ".LSE": ".L",
+    ".LON": ".L",
+    # Germany / XETRA → .DE
+    ".XETRA": ".DE",
+    ".FRA": ".DE",
+    ".ETR": ".DE",
+    ".FRANKFURT": ".DE",
+    # Bucharest (BVB) → .RO
+    ".BVB": ".RO",
+    ".BET": ".RO",
+    # US exchanges → no suffix
+    ".US": "",
+    ".NYSE": "",
+    ".NASDAQ": "",
+    ".AMEX": "",
+    # Euronext
+    ".AMS": ".AS",       # Amsterdam → .AS
+    ".BRU": ".BR",       # Brussels → .BR
+    ".LIS": ".LS",       # Lisbon → .LS
+    ".PARIS": ".PA",     # Paris → .PA
+    # Italy
+    ".MIL": ".MI",       # Milan → .MI
+    # Spain
+    ".MAD": ".MC",       # Madrid → .MC
+    # Switzerland
+    ".SIX": ".SW",       # SIX Swiss → .SW
+    ".SWISS": ".SW",
+    # Austria
+    ".VIE": ".VI",       # Vienna → .VI
+    # Canada
+    ".TSX": ".TO",       # Toronto → .TO
+    # Asia-Pacific
+    ".TYO": ".T",        # Tokyo → .T
+    ".HKG": ".HK",       # Hong Kong → .HK
+    ".ASX": ".AX",       # Australia → .AX
+}
+
+
+def normalize_ticker(ticker: str) -> str:
+    """Normalize ticker for yfinance compatibility.
+
+    Maps common exchange abbreviations (e.g. .UK → .L for London)
+    to the suffixes yfinance actually recognises.
+    """
+    upper = ticker.upper()
+    for old_suffix, new_suffix in _EXCHANGE_SUFFIX_MAP.items():
+        if upper.endswith(old_suffix):
+            return upper[: -len(old_suffix)] + new_suffix
+    return upper
+
 
 @dataclass
 class PriceResult:
@@ -51,7 +107,7 @@ def lookup_ticker(ticker: str) -> PriceResult:
 
     Raises ValueError for invalid/unfetchable tickers.
     """
-    ticker = ticker.upper()
+    ticker = normalize_ticker(ticker)
     cached = _cache.get(ticker)
     if cached:
         return cached
@@ -86,7 +142,7 @@ def fetch_batch_prices(tickers: list[str]) -> dict[str, PriceResult]:
     if not tickers:
         return {}
 
-    tickers = [t.upper() for t in tickers]
+    tickers = [normalize_ticker(t) for t in tickers]
 
     # Check cache first
     cached = _cache.get_batch(tickers)
