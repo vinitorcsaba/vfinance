@@ -7,6 +7,7 @@ from app.schemas.holding import (
     StockHoldingRead,
     StockHoldingUpdate,
 )
+from app.schemas.label import AssignLabels, LabelCreate, LabelRead, LabelUpdate
 
 __all__ = [
     "Currency",
@@ -16,4 +17,8 @@ __all__ = [
     "ManualHoldingCreate",
     "ManualHoldingRead",
     "ManualHoldingUpdate",
+    "LabelCreate",
+    "LabelRead",
+    "LabelUpdate",
+    "AssignLabels",
 ]

@@ -63,6 +63,10 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 - `backend/app/services/` — Business logic (price fetching, sheets export, scheduler)
 - `frontend/src/` — React app, `@/` alias maps to `src/`
 
+**Labels system** (FIN-17): `Label` model with junction tables (`stock_holding_labels`, `manual_holding_labels`). Labels router provides CRUD at `/api/v1/labels` and assignment at `/api/v1/holdings/stocks/{id}/labels` and `/api/v1/holdings/manual/{id}/labels`. Holdings eagerly load labels via `lazy="selectin"`. Frontend has `LabelManager` (collapsible CRUD section on Holdings page) and `LabelAssignPopover` (per-row label assignment).
+
+**Currency selector** (FIN-18): Dashboard has a currency dropdown that converts all displayed values from RON to the selected currency using `fx_rates` from the portfolio API. A "Group" toggle groups the holdings table by native currency with subtotal rows. Both preferences persist in `localStorage`.
+
 **UI stack**: Shadcn/ui components + Tailwind CSS v4 (uses `@tailwindcss/vite` plugin, not PostCSS). Path alias `@/*` → `src/*` configured in both `vite.config.ts` and `tsconfig.json`.
 
 ## Conventions

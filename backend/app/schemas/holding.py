@@ -3,6 +3,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.schemas.label import LabelRead
+
 
 class Currency(str, Enum):
     RON = "RON"
@@ -41,6 +43,7 @@ class StockHoldingRead(BaseModel):
     shares: float
     currency: str | None
     display_name: str | None
+    labels: list[LabelRead] = []
     created_at: datetime
     updated_at: datetime
 
@@ -67,6 +70,7 @@ class ManualHoldingRead(BaseModel):
     name: str
     value: float
     currency: str
+    labels: list[LabelRead] = []
     created_at: datetime
     updated_at: datetime
 
