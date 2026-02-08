@@ -40,15 +40,19 @@ def download_db() -> bool:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     client = _get_s3_client()
-    try:
-        client.download_file(settings.spaces_bucket, OBJECT_KEY, str(db_path))
-        logger.info("Downloaded DB from Spaces (%s/%s)", settings.spaces_bucket, OBJECT_KEY)
-        return True
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "404":
-            logger.info("No DB found in Spaces — starting fresh")
-            return False
-        raise
+
+    # Check if the object exists using list_objects_v2 (works reliably on DO Spaces,
+    # unlike head_object which returns 403 for missing keys instead of 404)
+    resp = client.list_objects_v2(
+        Bucket=settings.spaces_bucket, Prefix=OBJECT_KEY, MaxKeys=1,
+    )
+    if resp.get("KeyCount", 0) == 0:
+        logger.info("No DB found in Spaces — starting fresh")
+        return False
+
+    client.download_file(settings.spaces_bucket, OBJECT_KEY, str(db_path))
+    logger.info("Downloaded DB from Spaces (%s/%s)", settings.spaces_bucket, OBJECT_KEY)
+    return True
 
 
 def upload_db() -> int:
