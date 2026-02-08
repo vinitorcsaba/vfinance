@@ -9,6 +9,7 @@ from app.database import Base, engine
 from app.routers.holdings import router as holdings_router
 from app.routers.portfolio import router as portfolio_router
 from app.routers.prices import router as prices_router
+from app.routers.snapshots import router as snapshots_router
 import app.models  # noqa: F401 — register ORM models with Base.metadata
 
 
@@ -33,6 +34,7 @@ app.add_middleware(
 app.include_router(holdings_router)
 app.include_router(portfolio_router)
 app.include_router(prices_router)
+app.include_router(snapshots_router)
 
 
 @app.get("/api/v1/health")
