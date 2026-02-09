@@ -6,15 +6,21 @@ import { Toaster } from "@/components/ui/sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardPage } from "@/pages/DashboardPage"
 import { HoldingsPage } from "@/pages/HoldingsPage"
+import { SnapshotsPage } from "@/pages/SnapshotsPage"
 import { getBackupStatus, uploadBackup } from "@/api/backup"
+import { getSheetsStatus } from "@/api/snapshots"
 
 function App() {
   const [backupConfigured, setBackupConfigured] = useState(false)
+  const [sheetsConfigured, setSheetsConfigured] = useState(false)
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     getBackupStatus()
       .then((s) => setBackupConfigured(s.configured))
+      .catch(() => {})
+    getSheetsStatus()
+      .then((s) => setSheetsConfigured(s.configured))
       .catch(() => {})
   }, [])
 
@@ -56,12 +62,16 @@ function App() {
           <TabsList>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="holdings">Holdings</TabsTrigger>
+            <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-6">
             <DashboardPage />
           </TabsContent>
           <TabsContent value="holdings" className="mt-6">
             <HoldingsPage />
+          </TabsContent>
+          <TabsContent value="snapshots" className="mt-6">
+            <SnapshotsPage sheetsConfigured={sheetsConfigured} />
           </TabsContent>
         </Tabs>
       </main>

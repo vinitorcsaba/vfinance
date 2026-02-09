@@ -4,9 +4,15 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.snapshot import Snapshot
 from app.schemas.snapshot import SnapshotRead, SnapshotSummary
+from app.services.sheets import is_sheets_configured, export_snapshot_to_sheets
 from app.services.snapshot import create_snapshot
 
 router = APIRouter(prefix="/api/v1/snapshots", tags=["snapshots"])
+
+
+@router.get("/sheets-status")
+def sheets_status():
+    return {"configured": is_sheets_configured()}
 
 
 @router.post("", response_model=SnapshotRead, status_code=201)
@@ -39,3 +45,21 @@ def get_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
     if not snapshot:
         raise HTTPException(status_code=404, detail="Snapshot not found")
     return snapshot
+
+
+@router.post("/{snapshot_id}/export")
+def export_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
+    """Export a snapshot to Google Sheets."""
+    if not is_sheets_configured():
+        raise HTTPException(status_code=400, detail="Google Sheets is not configured")
+
+    snapshot = db.get(Snapshot, snapshot_id)
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    url = export_snapshot_to_sheets(snapshot)
+    snapshot.exported_to_sheets = True
+    snapshot.sheets_url = url
+    db.commit()
+
+    return {"sheets_url": url}
