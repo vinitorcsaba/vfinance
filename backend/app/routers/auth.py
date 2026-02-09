@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 def _create_session_token(user_id: int) -> str:
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),
         "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=settings.auth_token_expire_minutes),
     }
     return jwt.encode(payload, settings.auth_secret_key, algorithm="HS256")

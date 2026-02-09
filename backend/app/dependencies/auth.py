@@ -24,11 +24,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         logger.warning("JWT decode failed: %s (token length=%d)", exc, len(token))
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    user_id: int | None = payload.get("sub")
-    if user_id is None:
+    sub: str | None = payload.get("sub")
+    if sub is None:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    user = db.get(User, user_id)
+    user = db.get(User, int(sub))
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
 
