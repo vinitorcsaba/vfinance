@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon } from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,7 +94,7 @@ export function DashboardPage() {
   const filteredHoldings = useMemo(() => {
     if (selectedLabels.length === 0) return holdings;
     return holdings.filter((h) =>
-      (h.labels ?? []).some((l) => selectedLabels.includes(l.id))
+      selectedLabels.every((id) => (h.labels ?? []).some((l) => l.id === id))
     );
   }, [holdings, selectedLabels]);
 
@@ -113,12 +113,17 @@ export function DashboardPage() {
       return { pieData: entries, pieColors: colors };
     }
     const entries = filteredHoldings.map((h) => ({
-      name: h.name,
+      name: h.ticker ?? h.name,
       value: convertFromRon(h.value_ron, dc, fxRates),
     }));
     const colors = entries.map((_, i) => COLORS[i % COLORS.length]);
     return { pieData: entries, pieColors: colors };
   }, [filteredHoldings, chartMode, dc, fxRates]);
+
+  const pieTotal = useMemo(
+    () => pieData.reduce((sum, d) => sum + d.value, 0),
+    [pieData]
+  );
 
   function handleCurrencyChange(val: string) {
     setDisplayCurrency(val);
@@ -189,9 +194,6 @@ export function DashboardPage() {
             </Badge>
           )}
           <LabelBadges labels={h.labels ?? []} />
-        </TableCell>
-        <TableCell>
-          <Badge variant="outline">{h.type}</Badge>
         </TableCell>
         <TableCell className="text-right">
           {h.shares != null ? formatNumber(h.shares) : "—"}
@@ -340,12 +342,21 @@ export function DashboardPage() {
                       return (
                         <button
                           key={l.id}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-opacity ${
-                            isSelected || selectedLabels.length === 0 ? "opacity-100" : "opacity-40"
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-all ${
+                            isSelected
+                              ? "opacity-100 ring-1 ring-offset-1 scale-105"
+                              : selectedLabels.length > 0
+                                ? "opacity-30 saturate-0"
+                                : "opacity-100"
                           }`}
                           style={
                             l.color
-                              ? { backgroundColor: l.color + "20", borderColor: l.color, color: l.color }
+                              ? {
+                                  backgroundColor: l.color + "20",
+                                  borderColor: l.color,
+                                  color: l.color,
+                                  ...(isSelected ? { "--tw-ring-color": l.color } as React.CSSProperties : {}),
+                                }
                               : {}
                           }
                           onClick={() => toggleLabel(l.id)}
@@ -391,9 +402,28 @@ export function DashboardPage() {
                     <Tooltip
                       formatter={(value) => `${formatNumber(Number(value))} ${dc}`}
                     />
-                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+              {selectedLabels.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Showing: {formatNumber(pieTotal)} {dc} ({filteredHoldings.length} holding{filteredHoldings.length !== 1 ? "s" : ""})
+                </p>
+              )}
+              {/* Color-coded legend with percentages */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+                {pieData.map((d, i) => (
+                  <div key={d.name} className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: pieColors[i] }}
+                    />
+                    <span className="truncate">{d.name}</span>
+                    <span className="ml-auto shrink-0 text-muted-foreground">
+                      {formatNumber(d.value)} {dc} ({pieTotal > 0 ? ((d.value / pieTotal) * 100).toFixed(1) : "0.0"}%)
+                    </span>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -411,7 +441,6 @@ export function DashboardPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
                       <TableHead className="text-right">Shares</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-right">Value</TableHead>
@@ -426,7 +455,7 @@ export function DashboardPage() {
                         return (
                           <Fragment key={`group-${currency}`}>
                             <TableRow className="bg-muted/50">
-                              <TableCell colSpan={5} className="font-semibold text-xs uppercase tracking-wide">
+                              <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
                                 {currency}
                               </TableCell>
                               <TableCell className="text-right font-semibold text-xs">

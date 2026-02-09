@@ -67,7 +67,9 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **Currency selector** (FIN-18): Dashboard has a currency dropdown that converts all displayed values from RON to the selected currency using `fx_rates` from the portfolio API. A "Group" toggle groups the holdings table by native currency with subtotal rows. Both preferences persist in `localStorage`.
 
-**Allocation chart modes** (FIN-22): Dashboard pie chart has a "By Holding" / "By Currency" toggle. Currency mode aggregates holdings by currency with a fixed color palette. Clickable label badges filter both chart modes to holdings matching any selected label. Label color palette expanded to 16 preset colors shown in an 8-column grid.
+**Allocation chart modes** (FIN-22): Dashboard pie chart has a "By Holding" / "By Currency" toggle. Currency mode aggregates holdings by currency with a fixed color palette. Label color palette expanded to 16 preset colors shown in an 8-column grid.
+
+**Dashboard improvements** (FIN-25): Pie chart shows ticker symbols instead of full names for stocks. Label filter uses AND logic (holdings must match all selected labels). Type column removed from holdings table. Selected label badges have ring + scale highlighting; unselected ones go grayscale. Filtered total shown below chart when labels are active. Custom color-coded legend with percentages replaces Recharts default Legend.
 
 **Stock search by name** (FIN-23): The "Add Stock" dialog accepts company names (e.g. "Banca Transilvania") in addition to ticker symbols. The search button triggers `yfinance.Search()` for name queries or direct ticker lookup for exact symbols. Results appear in a dropdown with keyboard navigation (arrows + Enter/Escape). Selecting a result auto-fills ticker, currency, and display name. Backend endpoint: `GET /api/v1/prices/search?q=...` returns `list[StockSearchResult]`.
 
