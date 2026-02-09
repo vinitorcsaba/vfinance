@@ -26,6 +26,6 @@ Prints a table with the current price, currency, and market capitalization for e
 
 | Ticker | Price | Currency | Market Cap (m) |
 |--------|-------|----------|----------------|
-| SNP    | ...   | RON      | ...             |
-| TLV    | ...   | RON      | ...             |
-| CNDX   | ...   | USD      | ...             |
+| SNP    | ...   | RON      | ...            |
+| TLV    | ...   | RON      | ...            |
+| CNDX   | ...   | USD      | ...            |
