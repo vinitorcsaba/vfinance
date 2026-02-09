@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.dependencies.auth import get_current_user
 from app.schemas.price import PriceLookupResponse, StockSearchResult
 from app.services.price import lookup_ticker, search_stocks
 
-router = APIRouter(prefix="/api/v1/prices", tags=["prices"])
+router = APIRouter(prefix="/api/v1/prices", tags=["prices"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/lookup", response_model=PriceLookupResponse)

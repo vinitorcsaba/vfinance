@@ -1,28 +1,44 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { CloudUpload, Loader2 } from "lucide-react"
+import { CloudUpload, Loader2, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardPage } from "@/pages/DashboardPage"
 import { HoldingsPage } from "@/pages/HoldingsPage"
 import { SnapshotsPage } from "@/pages/SnapshotsPage"
+import { LoginPage } from "@/pages/LoginPage"
+import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { getBackupStatus, uploadBackup } from "@/api/backup"
 import { getSheetsStatus } from "@/api/snapshots"
 
-function App() {
+function AppContent() {
+  const { user, loading, logout } = useAuth()
   const [backupConfigured, setBackupConfigured] = useState(false)
   const [sheetsConfigured, setSheetsConfigured] = useState(false)
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
+    if (!user) return
     getBackupStatus()
       .then((s) => setBackupConfigured(s.configured))
       .catch(() => {})
     getSheetsStatus()
       .then((s) => setSheetsConfigured(s.configured))
       .catch(() => {})
-  }, [])
+  }, [user])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage />
+  }
 
   const handleUpload = async () => {
     setUploading(true)
@@ -41,21 +57,41 @@ function App() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b px-6 py-4">
         <h1 className="text-2xl font-bold">VFinance</h1>
-        {backupConfigured && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={uploading}
-            onClick={handleUpload}
-          >
-            {uploading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-3">
+          {backupConfigured && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={uploading}
+              onClick={handleUpload}
+            >
+              {uploading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CloudUpload className="mr-2 h-4 w-4" />
+              )}
+              Save to Cloud
+            </Button>
+          )}
+          <div className="flex items-center gap-2">
+            {user.picture_url ? (
+              <img
+                src={user.picture_url}
+                alt={user.name}
+                className="h-7 w-7 rounded-full"
+                referrerPolicy="no-referrer"
+              />
             ) : (
-              <CloudUpload className="mr-2 h-4 w-4" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-medium">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
             )}
-            Save to Cloud
-          </Button>
-        )}
+            <Button variant="ghost" size="sm" onClick={logout}>
+              <LogOut className="mr-1 h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+        </div>
       </header>
       <main className="mx-auto max-w-4xl p-6">
         <Tabs defaultValue="dashboard">
@@ -77,6 +113,14 @@ function App() {
       </main>
       <Toaster />
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

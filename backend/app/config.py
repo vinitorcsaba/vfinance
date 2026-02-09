@@ -7,6 +7,12 @@ class Settings(BaseSettings):
     google_sheets_key_path: str = ""
     google_sheets_spreadsheet_id: str = ""
 
+    # Google OAuth2
+    google_client_id: str = ""
+    auth_secret_key: str = ""
+    auth_token_expire_minutes: int = 1440  # 24 hours
+    allowed_emails: str = ""  # comma-separated allowlist; empty = allow any Google account
+
     # DigitalOcean Spaces (S3-compatible) — leave blank to disable cloud backup
     spaces_endpoint_url: str = ""
     spaces_region: str = ""

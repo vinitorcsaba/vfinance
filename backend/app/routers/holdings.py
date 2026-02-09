@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
 from app.services.price import lookup_ticker, normalize_ticker
 from app.schemas.holding import (
@@ -15,7 +16,7 @@ from app.schemas.holding import (
     StockHoldingUpdate,
 )
 
-router = APIRouter(prefix="/api/v1/holdings", tags=["holdings"])
+router = APIRouter(prefix="/api/v1/holdings", tags=["holdings"], dependencies=[Depends(get_current_user)])
 
 
 # --- Stock Holdings ---

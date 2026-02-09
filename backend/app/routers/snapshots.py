@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies.auth import get_current_user
 from app.models.snapshot import Snapshot
 from app.schemas.snapshot import SnapshotRead, SnapshotSummary
 from app.services.sheets import is_sheets_configured, export_snapshot_to_sheets
 from app.services.snapshot import create_snapshot
 
-router = APIRouter(prefix="/api/v1/snapshots", tags=["snapshots"])
+router = APIRouter(prefix="/api/v1/snapshots", tags=["snapshots"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/sheets-status")

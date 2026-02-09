@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
+from app.routers.auth import router as auth_router
 from app.routers.holdings import router as holdings_router
 from app.routers.labels import router as labels_router
 from app.routers.portfolio import router as portfolio_router
@@ -31,11 +32,13 @@ app = FastAPI(title="VFinance", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+app.include_router(auth_router)
 app.include_router(holdings_router)
 app.include_router(labels_router)
 app.include_router(portfolio_router)

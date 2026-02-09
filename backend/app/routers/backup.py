@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.dependencies.auth import get_current_user
 from app.services.spaces import is_spaces_configured, upload_db
 
-router = APIRouter(prefix="/api/v1/backup", tags=["backup"])
+router = APIRouter(prefix="/api/v1/backup", tags=["backup"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/status")

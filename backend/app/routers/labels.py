@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
 from app.models.label import Label
 from app.schemas.label import AssignLabels, LabelCreate, LabelRead, LabelUpdate
 
-router = APIRouter(prefix="/api/v1", tags=["labels"])
+router = APIRouter(prefix="/api/v1", tags=["labels"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/labels", response_model=list[LabelRead])
