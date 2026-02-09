@@ -134,6 +134,25 @@ def lookup_ticker(ticker: str) -> PriceResult:
     return result
 
 
+def search_stocks(query: str, max_results: int = 8) -> list[dict]:
+    """Search Yahoo Finance for stocks/ETFs matching a query string."""
+    try:
+        results = yf.Search(query, max_results=max_results)
+        return [
+            {
+                "ticker": q.get("symbol", ""),
+                "name": q.get("shortname") or q.get("longname") or q.get("symbol", ""),
+                "exchange": q.get("exchange", ""),
+                "type": q.get("quoteType", ""),
+            }
+            for q in (results.quotes or [])
+            if q.get("symbol")
+        ]
+    except Exception:
+        logger.warning("Stock search failed for query '%s'", query, exc_info=True)
+        return []
+
+
 def fetch_batch_prices(tickers: list[str]) -> dict[str, PriceResult]:
     """Fetch current prices for multiple tickers. Returns a dict of ticker -> PriceResult.
 

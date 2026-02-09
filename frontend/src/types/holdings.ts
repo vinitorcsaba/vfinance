@@ -63,3 +63,10 @@ export interface PriceLookupResponse {
   currency: string;
   name: string | null;
 }
+
+export interface StockSearchResult {
+  ticker: string;
+  name: string;
+  exchange: string;
+  type: string;
+}

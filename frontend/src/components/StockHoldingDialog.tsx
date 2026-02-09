@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2Icon, SearchIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { lookupTicker } from "@/api/holdings";
-import type { Currency, StockHolding, PriceLookupResponse } from "@/types/holdings";
+import { lookupTicker, searchStocks } from "@/api/holdings";
+import type { Currency, StockHolding, StockSearchResult, PriceLookupResponse } from "@/types/holdings";
 
 const CURRENCIES: Currency[] = ["RON", "EUR", "USD"];
+
+function looksLikeTicker(value: string): boolean {
+  return /^[A-Z0-9^.]+$/.test(value);
+}
 
 interface Props {
   open: boolean;
@@ -41,6 +45,14 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (open) {
       if (editing) {
@@ -59,16 +71,18 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
         setTickerError("");
       }
       setError("");
+      setSearchResults([]);
+      setShowResults(false);
+      setHighlightIndex(-1);
     }
   }, [open, editing]);
 
-  async function validateTicker() {
-    if (!ticker.trim()) return;
+  const doLookup = useCallback(async (tickerValue: string) => {
     setValidating(true);
     setTickerError("");
     setTickerInfo(null);
     try {
-      const result = await lookupTicker(ticker.trim());
+      const result = await lookupTicker(tickerValue);
       setTickerInfo(result);
       if (result.currency && !currency) {
         setCurrency(result.currency as Currency);
@@ -80,6 +94,62 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
       setTickerError(err instanceof Error ? err.message : "Invalid ticker");
     } finally {
       setValidating(false);
+    }
+  }, [currency, displayName]);
+
+  async function handleSearch() {
+    const query = ticker.trim();
+    if (!query || query.length < 2) return;
+
+    // If it looks like an exact ticker, go straight to lookup
+    if (looksLikeTicker(query)) {
+      setShowResults(false);
+      setSearchResults([]);
+      await doLookup(query);
+      return;
+    }
+
+    // Otherwise, search by name
+    setSearching(true);
+    setTickerError("");
+    setTickerInfo(null);
+    try {
+      const results = await searchStocks(query);
+      setSearchResults(results);
+      setShowResults(results.length > 0);
+      setHighlightIndex(-1);
+    } catch {
+      setSearchResults([]);
+      setShowResults(false);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function selectResult(result: StockSearchResult) {
+    setTicker(result.ticker);
+    setShowResults(false);
+    setSearchResults([]);
+    setHighlightIndex(-1);
+    doLookup(result.ticker);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!showResults || searchResults.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
+    } else if (e.key === "Enter" && highlightIndex >= 0) {
+      e.preventDefault();
+      selectResult(searchResults[highlightIndex]);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setShowResults(false);
+      setHighlightIndex(-1);
     }
   }
 
@@ -114,28 +184,59 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="ticker">Ticker</Label>
-            <div className="flex gap-2">
-              <Input
-                id="ticker"
-                placeholder="e.g. AAPL, TLV.RO"
-                value={ticker}
-                onChange={(e) => {
-                  setTicker(e.target.value.toUpperCase());
-                  setTickerInfo(null);
-                  setTickerError("");
-                }}
-                disabled={!!editing}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={validateTicker}
-                disabled={!ticker.trim() || validating}
-              >
-                {validating ? <Loader2Icon className="animate-spin" /> : <SearchIcon />}
-              </Button>
+            <Label htmlFor="ticker">Ticker or Name</Label>
+            <div className="relative">
+              <div className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  id="ticker"
+                  placeholder='e.g. AAPL, TLV.RO, or "Banca Transilvania"'
+                  value={ticker}
+                  onChange={(e) => {
+                    setTicker(e.target.value);
+                    setTickerInfo(null);
+                    setTickerError("");
+                    setShowResults(false);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  disabled={!!editing}
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleSearch}
+                  disabled={!ticker.trim() || ticker.trim().length < 2 || validating || searching || !!editing}
+                >
+                  {validating || searching ? <Loader2Icon className="animate-spin" /> : <SearchIcon />}
+                </Button>
+              </div>
+              {showResults && searchResults.length > 0 && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover shadow-md"
+                >
+                  {searchResults.map((result, i) => (
+                    <button
+                      key={result.ticker}
+                      type="button"
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${
+                        i === highlightIndex ? "bg-accent" : ""
+                      }`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectResult(result);
+                      }}
+                    >
+                      <span className="font-medium">{result.name}</span>
+                      <span className="text-muted-foreground">
+                        {" "}— {result.ticker} ({result.exchange}, {result.type})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {tickerError && <p className="text-sm text-destructive">{tickerError}</p>}
             {tickerInfo && (

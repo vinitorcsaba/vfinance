@@ -6,3 +6,10 @@ class PriceLookupResponse(BaseModel):
     price: float
     currency: str
     name: str | None = None
+
+
+class StockSearchResult(BaseModel):
+    ticker: str
+    name: str
+    exchange: str
+    type: str
