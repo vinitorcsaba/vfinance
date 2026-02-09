@@ -4,11 +4,12 @@ import {
   CameraIcon,
   ExternalLinkIcon,
   FileSpreadsheetIcon,
+  LinkIcon,
   Loader2Icon,
+  UnlinkIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -19,16 +20,15 @@ import {
 } from "@/components/ui/table";
 import { listSnapshots, createSnapshot, exportSnapshot } from "@/api/snapshots";
 import type { SnapshotSummary } from "@/types/snapshot";
+import { useAuth } from "@/contexts/AuthContext";
 
-export function SnapshotsPage({
-  sheetsConfigured,
-}: {
-  sheetsConfigured: boolean;
-}) {
+export function SnapshotsPage() {
+  const { user, connectSheets, disconnectSheets } = useAuth();
   const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [taking, setTaking] = useState(false);
   const [exportingId, setExportingId] = useState<number | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -71,6 +71,27 @@ export function SnapshotsPage({
     }
   };
 
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      await connectSheets();
+      toast.success("Google Sheets connected");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to connect");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectSheets();
+      toast.success("Google Sheets disconnected");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to disconnect");
+    }
+  };
+
   const fmt = (n: number) =>
     n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -85,6 +106,8 @@ export function SnapshotsPage({
     });
   };
 
+  const sheetsConnected = user?.sheets_connected ?? false;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -97,14 +120,31 @@ export function SnapshotsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Snapshots</h2>
-        <Button size="sm" disabled={taking} onClick={handleTakeSnapshot}>
-          {taking ? (
-            <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2">
+          {sheetsConnected ? (
+            <Button variant="ghost" size="sm" onClick={handleDisconnect}>
+              <UnlinkIcon className="mr-2 h-4 w-4" />
+              Disconnect Sheets
+            </Button>
           ) : (
-            <CameraIcon className="mr-2 h-4 w-4" />
+            <Button variant="outline" size="sm" disabled={connecting} onClick={handleConnect}>
+              {connecting ? (
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LinkIcon className="mr-2 h-4 w-4" />
+              )}
+              Connect Google Sheets
+            </Button>
           )}
-          Take Snapshot
-        </Button>
+          <Button size="sm" disabled={taking} onClick={handleTakeSnapshot}>
+            {taking ? (
+              <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <CameraIcon className="mr-2 h-4 w-4" />
+            )}
+            Take Snapshot
+          </Button>
+        </div>
       </div>
 
       {snapshots.length === 0 ? (
@@ -140,7 +180,7 @@ export function SnapshotsPage({
                         <ExternalLinkIcon className="h-3.5 w-3.5" />
                         View Sheet
                       </a>
-                    ) : sheetsConfigured ? (
+                    ) : sheetsConnected ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -155,9 +195,7 @@ export function SnapshotsPage({
                         Export
                       </Button>
                     ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
-                        Not configured
-                      </Badge>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
                 </TableRow>

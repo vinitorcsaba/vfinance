@@ -7,6 +7,8 @@ type AuthContextType = {
   loading: boolean;
   login: (googleToken: string) => Promise<void>;
   logout: () => Promise<void>;
+  connectSheets: () => Promise<void>;
+  disconnectSheets: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -33,8 +35,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const connectSheets = useCallback(async () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) throw new Error("Google Client ID not configured");
+
+    return new Promise<void>((resolve, reject) => {
+      const client = google.accounts.oauth2.initCodeClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file",
+        callback: async (response) => {
+          if (response.error) {
+            reject(new Error(response.error_description || response.error));
+            return;
+          }
+          try {
+            const updatedUser = await authApi.connectSheets(response.code);
+            setUser(updatedUser);
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        },
+      });
+      client.requestCode();
+    });
+  }, []);
+
+  const disconnectSheets = useCallback(async () => {
+    const updatedUser = await authApi.disconnectSheets();
+    setUser(updatedUser);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, connectSheets, disconnectSheets }}>
       {children}
     </AuthContext.Provider>
   );

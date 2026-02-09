@@ -3,4 +3,5 @@ export type User = {
   email: string;
   name: string;
   picture_url: string | null;
+  sheets_connected: boolean;
 };

@@ -4,11 +4,9 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     database_url: str = f"sqlite:///{Path(__file__).resolve().parent.parent.parent / 'data' / 'vfinance.db'}"
-    google_sheets_key_path: str = ""
-    google_sheets_spreadsheet_id: str = ""
-
     # Google OAuth2
     google_client_id: str = ""
+    google_client_secret: str = ""
     auth_secret_key: str = ""
     auth_token_expire_minutes: int = 1440  # 24 hours
     auth_cookie_secure: bool = True  # Set False for local dev over HTTP

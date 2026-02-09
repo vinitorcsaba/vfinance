@@ -1,26 +1,89 @@
-import gspread
+import logging
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 
 from app.config import settings
 from app.models.snapshot import Snapshot
+from app.models.user import User
+
+logger = logging.getLogger(__name__)
+
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+]
 
 
-def is_sheets_configured() -> bool:
-    return bool(settings.google_sheets_key_path and settings.google_sheets_spreadsheet_id)
+def _get_credentials(user: User) -> Credentials:
+    """Build Google credentials from user's stored tokens, auto-refreshing if needed."""
+    creds = Credentials(
+        token=user.google_access_token,
+        refresh_token=user.google_refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=settings.google_client_id,
+        client_secret=settings.google_client_secret,
+        scopes=SCOPES,
+    )
+    if creds.expired and creds.refresh_token:
+        from google.auth.transport.requests import Request
+        creds.refresh(Request())
+        user.google_access_token = creds.token
+    return creds
 
 
-def export_snapshot_to_sheets(snapshot: Snapshot) -> str:
-    """Export a snapshot to Google Sheets. Returns the worksheet URL."""
-    gc = gspread.service_account(filename=settings.google_sheets_key_path)
-    spreadsheet = gc.open_by_key(settings.google_sheets_spreadsheet_id)
+def _get_or_create_spreadsheet(user: User, creds: Credentials) -> str:
+    """Return the user's spreadsheet ID, creating one if it doesn't exist."""
+    sheets_svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
 
-    title = f"Snapshot {snapshot.id} — {snapshot.taken_at:%Y-%m-%d %H:%M}"
-    rows = len(snapshot.items) + 2  # header + items + summary
-    worksheet = spreadsheet.add_worksheet(title=title, rows=rows, cols=6)
+    if user.sheets_spreadsheet_id:
+        try:
+            sheets_svc.spreadsheets().get(spreadsheetId=user.sheets_spreadsheet_id).execute()
+            return user.sheets_spreadsheet_id
+        except Exception:
+            logger.warning("Stored spreadsheet %s not accessible, creating new one", user.sheets_spreadsheet_id)
 
+    result = sheets_svc.spreadsheets().create(
+        body={"properties": {"title": "VFinance Snapshots"}},
+    ).execute()
+    spreadsheet_id = result["spreadsheetId"]
+    user.sheets_spreadsheet_id = spreadsheet_id
+    return spreadsheet_id
+
+
+def export_snapshot_to_sheets(snapshot: Snapshot, user: User) -> str:
+    """Export a snapshot to the user's Google Sheets. Returns the worksheet URL."""
+    creds = _get_credentials(user)
+    spreadsheet_id = _get_or_create_spreadsheet(user, creds)
+
+    sheets_svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
+
+    title = f"Snapshot {snapshot.id} \u2014 {snapshot.taken_at:%Y-%m-%d %H:%M}"
+
+    # Add a new worksheet
+    add_resp = sheets_svc.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={
+            "requests": [{
+                "addSheet": {
+                    "properties": {
+                        "title": title,
+                        "gridProperties": {
+                            "rowCount": len(snapshot.items) + 2,
+                            "columnCount": 6,
+                        },
+                    }
+                }
+            }]
+        },
+    ).execute()
+    sheet_id = add_resp["replies"][0]["addSheet"]["properties"]["sheetId"]
+
+    # Build data rows
     header = ["Type", "Name", "Shares", "Price", "Value", "Currency"]
-    data = [header]
+    rows = [header]
     for item in snapshot.items:
-        data.append([
+        rows.append([
             item.holding_type,
             item.name,
             item.shares if item.shares is not None else "",
@@ -28,8 +91,14 @@ def export_snapshot_to_sheets(snapshot: Snapshot) -> str:
             item.value,
             item.currency,
         ])
-    data.append(["", "", "", "", snapshot.total_value_ron, "RON (total)"])
+    rows.append(["", "", "", "", snapshot.total_value_ron, "RON (total)"])
 
-    worksheet.update(data, "A1")
+    # Write data
+    sheets_svc.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=f"'{title}'!A1",
+        valueInputOption="RAW",
+        body={"values": rows},
+    ).execute()
 
-    return f"https://docs.google.com/spreadsheets/d/{spreadsheet.id}/edit#gid={worksheet.id}"
+    return f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid={sheet_id}"

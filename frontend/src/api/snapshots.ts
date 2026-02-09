@@ -15,10 +15,6 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function getSheetsStatus(): Promise<{ configured: boolean }> {
-  return request(`${BASE}/snapshots/sheets-status`);
-}
-
 export function listSnapshots(): Promise<SnapshotSummary[]> {
   return request(`${BASE}/snapshots`);
 }

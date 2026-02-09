@@ -4,16 +4,12 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.snapshot import Snapshot
+from app.models.user import User
 from app.schemas.snapshot import SnapshotRead, SnapshotSummary
-from app.services.sheets import is_sheets_configured, export_snapshot_to_sheets
+from app.services.sheets import export_snapshot_to_sheets
 from app.services.snapshot import create_snapshot
 
 router = APIRouter(prefix="/api/v1/snapshots", tags=["snapshots"], dependencies=[Depends(get_current_user)])
-
-
-@router.get("/sheets-status")
-def sheets_status():
-    return {"configured": is_sheets_configured()}
 
 
 @router.post("", response_model=SnapshotRead, status_code=201)
@@ -49,16 +45,16 @@ def get_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{snapshot_id}/export")
-def export_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
-    """Export a snapshot to Google Sheets."""
-    if not is_sheets_configured():
-        raise HTTPException(status_code=400, detail="Google Sheets is not configured")
+def export_snapshot(snapshot_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Export a snapshot to the user's Google Sheets."""
+    if not user.google_refresh_token:
+        raise HTTPException(status_code=400, detail="Google Sheets not connected")
 
     snapshot = db.get(Snapshot, snapshot_id)
     if not snapshot:
         raise HTTPException(status_code=404, detail="Snapshot not found")
 
-    url = export_snapshot_to_sheets(snapshot)
+    url = export_snapshot_to_sheets(snapshot, user)
     snapshot.exported_to_sheets = True
     snapshot.sheets_url = url
     db.commit()

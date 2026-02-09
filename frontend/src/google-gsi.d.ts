@@ -26,3 +26,26 @@ declare namespace google.accounts.id {
 
   function prompt(): void;
 }
+
+declare namespace google.accounts.oauth2 {
+  interface CodeResponse {
+    code: string;
+    scope: string;
+    error?: string;
+    error_description?: string;
+  }
+
+  interface CodeClientConfig {
+    client_id: string;
+    scope: string;
+    callback: (response: CodeResponse) => void;
+    ux_mode?: "popup" | "redirect";
+    redirect_uri?: string;
+  }
+
+  interface CodeClient {
+    requestCode(): void;
+  }
+
+  function initCodeClient(config: CodeClientConfig): CodeClient;
+}

@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Response
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from sqlalchemy.orm import Session
@@ -10,7 +11,7 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.user import User
-from app.schemas.auth import GoogleLoginRequest, UserResponse
+from app.schemas.auth import GoogleLoginRequest, SheetsConnectRequest, UserResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -32,6 +33,16 @@ def _set_session_cookie(response: Response, token: str) -> None:
         samesite="lax",
         max_age=settings.auth_token_expire_minutes * 60,
         path="/",
+    )
+
+
+def _user_response(user: User) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        picture_url=user.picture_url,
+        sheets_connected=user.google_refresh_token is not None,
     )
 
 
@@ -80,15 +91,63 @@ def google_login(body: GoogleLoginRequest, response: Response, db: Session = Dep
 
     token = _create_session_token(user.id)
     _set_session_cookie(response, token)
-    return user
+    return _user_response(user)
 
 
 @router.get("/me", response_model=UserResponse)
 def get_me(user: User = Depends(get_current_user)):
-    return user
+    return _user_response(user)
 
 
 @router.post("/logout")
 def logout(response: Response):
     response.delete_cookie(key="session", path="/")
     return {"message": "Logged out"}
+
+
+@router.post("/connect-sheets", response_model=UserResponse)
+def connect_sheets(
+    body: SheetsConnectRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Exchange Google auth code for tokens and store on user."""
+    if not settings.google_client_id or not settings.google_client_secret:
+        raise HTTPException(status_code=500, detail="Google OAuth not fully configured")
+
+    token_resp = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": body.code,
+            "client_id": settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "redirect_uri": "postmessage",
+            "grant_type": "authorization_code",
+        },
+        timeout=10,
+    )
+    if token_resp.status_code != 200:
+        detail = token_resp.json().get("error_description", "Token exchange failed")
+        raise HTTPException(status_code=400, detail=detail)
+
+    tokens = token_resp.json()
+    user.google_access_token = tokens["access_token"]
+    if "refresh_token" in tokens:
+        user.google_refresh_token = tokens["refresh_token"]
+    db.commit()
+    db.refresh(user)
+    return _user_response(user)
+
+
+@router.post("/disconnect-sheets", response_model=UserResponse)
+def disconnect_sheets(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Clear Google Sheets tokens and spreadsheet ID."""
+    user.google_access_token = None
+    user.google_refresh_token = None
+    user.sheets_spreadsheet_id = None
+    db.commit()
+    db.refresh(user)
+    return _user_response(user)

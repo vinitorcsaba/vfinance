@@ -53,6 +53,7 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 - `Label` — name (unique, max 50), color (hex, nullable), created_at; linked via junction tables
 - `Snapshot` — taken_at, total_value_ron, exported_to_sheets, sheets_url; has `items` relationship
 - `SnapshotItem` — FK to snapshot, holding_type, name, shares, price, value, currency
+- `User` — google_id, email, name, picture_url, google_access_token, google_refresh_token, sheets_spreadsheet_id, timestamps
 
 **Alembic**: Config in `backend/alembic.ini`, `env.py` reads DB URL from `app.config.settings`. Run migrations from project root: `python -m alembic -c backend/alembic.ini upgrade head`
 
@@ -70,6 +71,8 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 **Allocation chart modes** (FIN-22): Dashboard pie chart has a "By Holding" / "By Currency" toggle. Currency mode aggregates holdings by currency with a fixed color palette. Label color palette expanded to 16 preset colors shown in an 8-column grid.
 
 **Dashboard improvements** (FIN-25): Pie chart shows ticker symbols instead of full names for stocks. Label filter uses AND logic (holdings must match all selected labels). Type column removed from holdings table. Selected label badges have ring + scale highlighting; unselected ones go grayscale. Filtered total shown below chart when labels are active. Custom color-coded legend with percentages replaces Recharts default Legend.
+
+**Google Sheets export via user OAuth** (FIN-31): Replaced service-account-based export with user's own Google OAuth credentials. Progressive consent flow: "Connect Google Sheets" button triggers `google.accounts.oauth2.initCodeClient()` requesting `spreadsheets` + `drive.file` scopes. Backend exchanges auth code for access/refresh tokens stored on User. Auto-creates "VFinance Snapshots" spreadsheet in user's Drive on first export. Token auto-refresh via `google.oauth2.credentials.Credentials`. Auth endpoints: `POST /connect-sheets`, `POST /disconnect-sheets`. `UserResponse` includes `sheets_connected: bool`.
 
 **Stock search by name** (FIN-23): The "Add Stock" dialog accepts company names (e.g. "Banca Transilvania") in addition to ticker symbols. The search button triggers `yfinance.Search()` for name queries or direct ticker lookup for exact symbols. Results appear in a dropdown with keyboard navigation (arrows + Enter/Escape). Selecting a result auto-fills ticker, currency, and display name. Backend endpoint: `GET /api/v1/prices/search?q=...` returns `list[StockSearchResult]`.
 

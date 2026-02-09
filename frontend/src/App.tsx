@@ -10,21 +10,16 @@ import { SnapshotsPage } from "@/pages/SnapshotsPage"
 import { LoginPage } from "@/pages/LoginPage"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { getBackupStatus, uploadBackup } from "@/api/backup"
-import { getSheetsStatus } from "@/api/snapshots"
 
 function AppContent() {
   const { user, loading, logout } = useAuth()
   const [backupConfigured, setBackupConfigured] = useState(false)
-  const [sheetsConfigured, setSheetsConfigured] = useState(false)
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (!user) return
     getBackupStatus()
       .then((s) => setBackupConfigured(s.configured))
-      .catch(() => {})
-    getSheetsStatus()
-      .then((s) => setSheetsConfigured(s.configured))
       .catch(() => {})
   }, [user])
 
@@ -107,7 +102,7 @@ function AppContent() {
             <HoldingsPage />
           </TabsContent>
           <TabsContent value="snapshots" className="mt-6">
-            <SnapshotsPage sheetsConfigured={sheetsConfigured} />
+            <SnapshotsPage />
           </TabsContent>
         </Tabs>
       </main>

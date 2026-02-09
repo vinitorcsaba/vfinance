@@ -18,7 +18,7 @@ vfinance is currently a single Python script (`tracker.py`) that fetches BET Ind
 | Frontend | **React + Vite + TypeScript** | Fast builds, clean separation from API, future mobile code sharing |
 | UI | **Shadcn/ui + Tailwind CSS** | Owned components, responsive out of the box |
 | Charts | **Recharts** | Lightweight React charting |
-| Sheets Export | **gspread** + Google Service Account | No OAuth flow needed for single-user local app |
+| Sheets Export | **google-api-python-client** + User OAuth | Progressive consent via GSI; exports to user's own Drive |
 | Scheduling | **APScheduler 3.x** | In-process cron, cross-platform, no external deps |
 
 ## Data Model
@@ -104,12 +104,13 @@ vfinance/
 | 18 | FIN-22 | Allocation chart by currency/label + more colors | Medium | ✅ Pie chart view modes (by holding / by currency), label filtering on chart, expanded color palette (16 colors); frontend-only |
 | 19 | FIN-23 | Stock search by name | Medium | ✅ Search stocks by company name via yfinance Search API; dropdown results in add-stock dialog with keyboard navigation; auto-fills ticker/currency/name |
 | 20 | FIN-25 | Dashboard improvements | Medium | ✅ Ticker on pie chart, AND label filter, remove Type column, better label highlight states, filtered total display, custom legend with percentages; frontend-only |
+| 21 | FIN-31 | Google Sheets export via user OAuth | Medium | ✅ Replace service-account Sheets export with user OAuth; progressive consent flow, auto-create spreadsheet in user's Drive, token refresh; removes gspread dependency |
 
-Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 → FIN-23 → FIN-25 (sequenced to avoid merge conflicts in shared files).
+Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 → FIN-23 → FIN-25 → FIN-31 (sequenced to avoid merge conflicts in shared files).
 
 ## Key Design Decisions
 
-- **Service Account** (not OAuth) for Google Sheets — download JSON key once, share sheet with service account email, done
+- **User OAuth** for Google Sheets — progressive consent via GSI code client; tokens stored on User model; auto-creates spreadsheet in user's Drive
 - **In-memory price cache** (60s TTL) — no Redis, keeps it simple for single-user local usage
 - **APScheduler in-process** — runs only while the app is running; manual export is always available as fallback
 - **FastAPI serves built frontend** — `npm run build` → FastAPI mounts `dist/` as static files → single `uvicorn` command runs everything
