@@ -28,7 +28,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         key="session",
         value=token,
         httponly=True,
-        secure=False,  # Set True in production behind HTTPS
+        secure=settings.auth_cookie_secure,
         samesite="lax",
         max_age=settings.auth_token_expire_minutes * 60,
         path="/",

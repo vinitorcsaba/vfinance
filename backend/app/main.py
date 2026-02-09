@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.config import settings
 from app.database import Base, engine
 from app.routers.auth import router as auth_router
 from app.routers.holdings import router as holdings_router
@@ -17,8 +19,13 @@ from app.services.spaces import download_db
 import app.models  # noqa: F401 — register ORM models with Base.metadata
 
 
+logger = logging.getLogger(__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not settings.auth_secret_key:
+        logger.warning("AUTH_SECRET_KEY is not set — sessions will use an empty signing key!")
     # Restore DB from cloud before creating tables (so create_all is a no-op if DB exists)
     download_db()
     # Startup: ensure all tables exist (idempotent, works alongside Alembic)
