@@ -102,8 +102,9 @@ vfinance/
 | 16 | FIN-17 | Labels system for holdings | Medium | ✅ Create/assign labels for categorization; new Label model + junction tables; migration required |
 | 17 | FIN-18 | Dashboard currency selector and grouping | Medium | ✅ Choose display currency for totals/charts, group by currency toggle; frontend-only |
 | 18 | FIN-22 | Allocation chart by currency/label + more colors | Medium | ✅ Pie chart view modes (by holding / by currency), label filtering on chart, expanded color palette (16 colors); frontend-only |
+| 19 | FIN-23 | Stock search by name | Medium | ✅ Search stocks by company name via yfinance Search API; dropdown results in add-stock dialog with keyboard navigation; auto-fills ticker/currency/name |
 
-Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 (sequenced to avoid merge conflicts in shared files).
+Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 → FIN-23 (sequenced to avoid merge conflicts in shared files).
 
 ## Key Design Decisions
 

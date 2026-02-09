@@ -8,6 +8,7 @@ import type {
   ManualHoldingUpdate,
   ManualAddValue,
   PriceLookupResponse,
+  StockSearchResult,
 } from "@/types/holdings";
 
 const BASE = "/api/v1";
@@ -90,4 +91,8 @@ export function addManualValue(id: number, data: ManualAddValue): Promise<Manual
 
 export function lookupTicker(ticker: string): Promise<PriceLookupResponse> {
   return request(`${BASE}/prices/lookup?ticker=${encodeURIComponent(ticker)}`);
+}
+
+export function searchStocks(query: string): Promise<StockSearchResult[]> {
+  return request(`${BASE}/prices/search?q=${encodeURIComponent(query)}`);
 }
