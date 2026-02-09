@@ -1,6 +1,6 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCwIcon, Loader2Icon, ListIcon } from "lucide-react";
+import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,18 @@ const COLORS = [
   "#0891b2", "#4f46e5", "#c026d3", "#d97706", "#059669",
 ];
 
+const CURRENCY_COLORS: Record<string, string> = {
+  RON: "#2563eb",
+  EUR: "#16a34a",
+  USD: "#ea580c",
+  GBP: "#7c3aed",
+  CHF: "#dc2626",
+  HUF: "#d97706",
+};
+const CURRENCY_FALLBACK_COLOR = "#6b7280";
+
+type ChartMode = "holding" | "currency";
+
 const STORAGE_KEY_CURRENCY = "vfinance-display-currency";
 const STORAGE_KEY_GROUP = "vfinance-group-by-currency";
 
@@ -54,12 +66,59 @@ export function DashboardPage() {
   const [groupByCurrency, setGroupByCurrency] = useState<boolean>(
     () => localStorage.getItem(STORAGE_KEY_GROUP) === "true"
   );
+  const [chartMode, setChartMode] = useState<ChartMode>("holding");
+  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["portfolio"],
     queryFn: getPortfolio,
     staleTime: 60_000,
   });
+
+  const holdings = useMemo(() => data?.holdings ?? [], [data]);
+  const fxRates = useMemo(() => data?.fx_rates ?? {}, [data]);
+  const dc = displayCurrency;
+
+  // Extract unique labels from all holdings
+  const allLabels = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; color: string | null }>();
+    for (const h of holdings) {
+      for (const l of h.labels ?? []) {
+        if (!map.has(l.id)) map.set(l.id, l);
+      }
+    }
+    return Array.from(map.values());
+  }, [holdings]);
+
+  // Filter holdings by selected labels
+  const filteredHoldings = useMemo(() => {
+    if (selectedLabels.length === 0) return holdings;
+    return holdings.filter((h) =>
+      (h.labels ?? []).some((l) => selectedLabels.includes(l.id))
+    );
+  }, [holdings, selectedLabels]);
+
+  // Pie data depends on chart mode
+  const { pieData, pieColors } = useMemo(() => {
+    if (chartMode === "currency") {
+      const byCurrency = new Map<string, number>();
+      for (const h of filteredHoldings) {
+        byCurrency.set(h.currency, (byCurrency.get(h.currency) ?? 0) + h.value_ron);
+      }
+      const entries = Array.from(byCurrency.entries()).map(([currency, valueRon]) => ({
+        name: currency,
+        value: convertFromRon(valueRon, dc, fxRates),
+      }));
+      const colors = entries.map((d) => CURRENCY_COLORS[d.name] ?? CURRENCY_FALLBACK_COLOR);
+      return { pieData: entries, pieColors: colors };
+    }
+    const entries = filteredHoldings.map((h) => ({
+      name: h.name,
+      value: convertFromRon(h.value_ron, dc, fxRates),
+    }));
+    const colors = entries.map((_, i) => COLORS[i % COLORS.length]);
+    return { pieData: entries, pieColors: colors };
+  }, [filteredHoldings, chartMode, dc, fxRates]);
 
   function handleCurrencyChange(val: string) {
     setDisplayCurrency(val);
@@ -72,6 +131,12 @@ export function DashboardPage() {
       localStorage.setItem(STORAGE_KEY_GROUP, String(next));
       return next;
     });
+  }
+
+  function toggleLabel(id: number) {
+    setSelectedLabels((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   }
 
   if (isLoading) {
@@ -95,16 +160,10 @@ export function DashboardPage() {
 
   if (!data) return null;
 
-  const { holdings, currency_totals, grand_total_ron, fx_rates } = data;
+  const { currency_totals, grand_total_ron, fx_rates } = data;
 
   const currencyOptions = Object.keys(fx_rates).sort();
-  const dc = displayCurrency;
   const grandTotalDisplay = convertFromRon(grand_total_ron, dc, fx_rates);
-
-  const pieData = holdings.map((h) => ({
-    name: h.name,
-    value: convertFromRon(h.value_ron, dc, fx_rates),
-  }));
 
   const hasHoldings = holdings.length > 0;
 
@@ -248,7 +307,68 @@ export function DashboardPage() {
                 Allocation ({dc} equivalent)
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              {/* Chart controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex rounded-md border">
+                  <button
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                      chartMode === "holding"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    }`}
+                    onClick={() => setChartMode("holding")}
+                  >
+                    By Holding
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-xs font-medium border-l transition-colors ${
+                      chartMode === "currency"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    }`}
+                    onClick={() => setChartMode("currency")}
+                  >
+                    By Currency
+                  </button>
+                </div>
+                {allLabels.length > 0 && (
+                  <>
+                    <span className="text-xs text-muted-foreground ml-1">Filter:</span>
+                    {allLabels.map((l) => {
+                      const isSelected = selectedLabels.includes(l.id);
+                      return (
+                        <button
+                          key={l.id}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-opacity ${
+                            isSelected || selectedLabels.length === 0 ? "opacity-100" : "opacity-40"
+                          }`}
+                          style={
+                            l.color
+                              ? { backgroundColor: l.color + "20", borderColor: l.color, color: l.color }
+                              : {}
+                          }
+                          onClick={() => toggleLabel(l.id)}
+                        >
+                          {l.color && (
+                            <span className="size-2 rounded-full" style={{ backgroundColor: l.color }} />
+                          )}
+                          {l.name}
+                        </button>
+                      );
+                    })}
+                    {selectedLabels.length > 0 && (
+                      <button
+                        className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setSelectedLabels([])}
+                      >
+                        <XIcon className="size-3" />
+                        Clear
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -265,7 +385,7 @@ export function DashboardPage() {
                       labelLine
                     >
                       {pieData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        <Cell key={i} fill={pieColors[i]} />
                       ))}
                     </Pie>
                     <Tooltip
