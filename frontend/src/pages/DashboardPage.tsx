@@ -175,7 +175,7 @@ export function DashboardPage() {
   // Group holdings by native currency for the group-by view
   const groupedHoldings: Map<string, HoldingDetail[]> = new Map();
   if (groupByCurrency) {
-    for (const h of holdings) {
+    for (const h of filteredHoldings) {
       const group = groupedHoldings.get(h.currency) || [];
       group.push(h);
       groupedHoldings.set(h.currency, group);
@@ -467,7 +467,7 @@ export function DashboardPage() {
                         );
                       })
                     ) : (
-                      holdings.map(renderHoldingRow)
+                      filteredHoldings.map(renderHoldingRow)
                     )}
                   </TableBody>
                 </Table>

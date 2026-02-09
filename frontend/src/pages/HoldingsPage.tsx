@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { PencilIcon, PlusCircleIcon, PlusIcon, Trash2Icon, Loader2Icon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { PencilIcon, PlusCircleIcon, PlusIcon, Trash2Icon, Loader2Icon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,39 @@ export function HoldingsPage() {
   } | null>(null);
   const [addSharesTarget, setAddSharesTarget] = useState<StockHolding | null>(null);
   const [addValueTarget, setAddValueTarget] = useState<ManualHolding | null>(null);
+  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
+
+  // Extract unique labels from all holdings
+  const allLabels = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; color: string | null }>();
+    for (const h of [...stocks, ...manuals]) {
+      for (const l of h.labels ?? []) {
+        if (!map.has(l.id)) map.set(l.id, l);
+      }
+    }
+    return Array.from(map.values());
+  }, [stocks, manuals]);
+
+  // Filter holdings by selected labels (AND logic)
+  const filteredStocks = useMemo(() => {
+    if (selectedLabels.length === 0) return stocks;
+    return stocks.filter((h) =>
+      selectedLabels.every((id) => (h.labels ?? []).some((l) => l.id === id))
+    );
+  }, [stocks, selectedLabels]);
+
+  const filteredManuals = useMemo(() => {
+    if (selectedLabels.length === 0) return manuals;
+    return manuals.filter((h) =>
+      selectedLabels.every((id) => (h.labels ?? []).some((l) => l.id === id))
+    );
+  }, [manuals, selectedLabels]);
+
+  function toggleLabel(id: number) {
+    setSelectedLabels((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   const fetchAll = useCallback(async () => {
     try {
@@ -132,6 +165,53 @@ export function HoldingsPage() {
 
       <LabelManager />
 
+      {/* Label filter */}
+      {allLabels.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Filter by label:</span>
+          {allLabels.map((l) => {
+            const isSelected = selectedLabels.includes(l.id);
+            return (
+              <button
+                key={l.id}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-all ${
+                  isSelected
+                    ? "opacity-100 ring-1 ring-offset-1 scale-105"
+                    : selectedLabels.length > 0
+                      ? "opacity-30 saturate-0"
+                      : "opacity-100"
+                }`}
+                style={
+                  l.color
+                    ? {
+                        backgroundColor: l.color + "20",
+                        borderColor: l.color,
+                        color: l.color,
+                        ...(isSelected ? { "--tw-ring-color": l.color } as React.CSSProperties : {}),
+                      }
+                    : {}
+                }
+                onClick={() => toggleLabel(l.id)}
+              >
+                {l.color && (
+                  <span className="size-2 rounded-full" style={{ backgroundColor: l.color }} />
+                )}
+                {l.name}
+              </button>
+            );
+          })}
+          {selectedLabels.length > 0 && (
+            <button
+              className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedLabels([])}
+            >
+              <XIcon className="size-3" />
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Stock Holdings */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -147,9 +227,11 @@ export function HoldingsPage() {
           </Button>
         </div>
 
-        {stocks.length === 0 ? (
+        {filteredStocks.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">
-            No stock holdings yet. Add one to get started.
+            {stocks.length === 0
+              ? "No stock holdings yet. Add one to get started."
+              : "No stock holdings match the selected labels."}
           </p>
         ) : (
           <div className="rounded-md border">
@@ -165,7 +247,7 @@ export function HoldingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stocks.map((stock) => (
+                {filteredStocks.map((stock) => (
                   <TableRow key={stock.id}>
                     <TableCell>
                       <Badge variant="secondary">{stock.ticker}</Badge>
@@ -244,9 +326,11 @@ export function HoldingsPage() {
           </Button>
         </div>
 
-        {manuals.length === 0 ? (
+        {filteredManuals.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">
-            No manual holdings yet. Add one to get started.
+            {manuals.length === 0
+              ? "No manual holdings yet. Add one to get started."
+              : "No manual holdings match the selected labels."}
           </p>
         ) : (
           <div className="rounded-md border">
@@ -261,7 +345,7 @@ export function HoldingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {manuals.map((manual) => (
+                {filteredManuals.map((manual) => (
                   <TableRow key={manual.id}>
                     <TableCell>{manual.name}</TableCell>
                     <TableCell>
