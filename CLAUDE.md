@@ -67,6 +67,8 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **Currency selector** (FIN-18): Dashboard has a currency dropdown that converts all displayed values from RON to the selected currency using `fx_rates` from the portfolio API. A "Group" toggle groups the holdings table by native currency with subtotal rows. Both preferences persist in `localStorage`.
 
+**Allocation chart modes** (FIN-22): Dashboard pie chart has a "By Holding" / "By Currency" toggle. Currency mode aggregates holdings by currency with a fixed color palette. Clickable label badges filter both chart modes to holdings matching any selected label. Label color palette expanded to 16 preset colors shown in an 8-column grid.
+
 **UI stack**: Shadcn/ui components + Tailwind CSS v4 (uses `@tailwindcss/vite` plugin, not PostCSS). Path alias `@/*` → `src/*` configured in both `vite.config.ts` and `tsconfig.json`.
 
 ## Conventions

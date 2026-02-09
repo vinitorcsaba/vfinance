@@ -10,6 +10,7 @@ import type { Label } from "@/types/labels";
 const PRESET_COLORS = [
   "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a",
   "#0891b2", "#4f46e5", "#d97706", "#059669", "#dc2626",
+  "#8b5cf6", "#f43f5e", "#14b8a6", "#f97316", "#818cf8", "#84cc16",
 ];
 
 export function LabelManager() {
@@ -99,8 +100,8 @@ export function LabelManager() {
               className="h-8 text-sm w-40"
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
-            <div className="flex gap-1">
-              {PRESET_COLORS.slice(0, 5).map((c) => (
+            <div className="grid grid-cols-8 gap-1">
+              {PRESET_COLORS.map((c) => (
                 <button
                   key={c}
                   className="size-5 rounded-full border-2 transition-all"
@@ -129,8 +130,8 @@ export function LabelManager() {
                     className="h-7 text-xs w-28"
                     onKeyDown={(e) => e.key === "Enter" && handleUpdate(label.id)}
                   />
-                  <div className="flex gap-0.5">
-                    {PRESET_COLORS.slice(0, 5).map((c) => (
+                  <div className="grid grid-cols-8 gap-0.5">
+                    {PRESET_COLORS.map((c) => (
                       <button
                         key={c}
                         className="size-4 rounded-full border"

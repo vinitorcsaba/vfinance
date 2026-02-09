@@ -101,8 +101,9 @@ vfinance/
 | 15 | FIN-16 | Add shares/value to existing holdings | Medium | "+" button on holding rows to increment shares/value instead of editing; new API endpoints |
 | 16 | FIN-17 | Labels system for holdings | Medium | ✅ Create/assign labels for categorization; new Label model + junction tables; migration required |
 | 17 | FIN-18 | Dashboard currency selector and grouping | Medium | ✅ Choose display currency for totals/charts, group by currency toggle; frontend-only |
+| 18 | FIN-22 | Allocation chart by currency/label + more colors | Medium | ✅ Pie chart view modes (by holding / by currency), label filtering on chart, expanded color palette (16 colors); frontend-only |
 
-Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 (sequenced to avoid merge conflicts in shared files).
+Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 (sequenced to avoid merge conflicts in shared files).
 
 ## Key Design Decisions
 
