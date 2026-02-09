@@ -103,8 +103,9 @@ vfinance/
 | 17 | FIN-18 | Dashboard currency selector and grouping | Medium | ✅ Choose display currency for totals/charts, group by currency toggle; frontend-only |
 | 18 | FIN-22 | Allocation chart by currency/label + more colors | Medium | ✅ Pie chart view modes (by holding / by currency), label filtering on chart, expanded color palette (16 colors); frontend-only |
 | 19 | FIN-23 | Stock search by name | Medium | ✅ Search stocks by company name via yfinance Search API; dropdown results in add-stock dialog with keyboard navigation; auto-fills ticker/currency/name |
+| 20 | FIN-25 | Dashboard improvements | Medium | ✅ Ticker on pie chart, AND label filter, remove Type column, better label highlight states, filtered total display, custom legend with percentages; frontend-only |
 
-Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 → FIN-23 (sequenced to avoid merge conflicts in shared files).
+Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 → FIN-23 → FIN-25 (sequenced to avoid merge conflicts in shared files).
 
 ## Key Design Decisions
 
