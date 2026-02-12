@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import Base, engine
+from app.routers.allocation_groups import router as allocation_groups_router
 from app.routers.auth import router as auth_router
 from app.routers.holdings import router as holdings_router
 from app.routers.labels import router as labels_router
@@ -45,6 +46,7 @@ app.add_middleware(
 )
 
 
+app.include_router(allocation_groups_router)
 app.include_router(auth_router)
 app.include_router(holdings_router)
 app.include_router(labels_router)

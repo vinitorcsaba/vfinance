@@ -30,13 +30,16 @@ import {
   addStockShares,
   addManualValue,
 } from "@/api/holdings";
+import { getAllocationGroups, getGroupMembers } from "@/api/allocation-groups";
 import type { StockHolding, ManualHolding, Currency } from "@/types/holdings";
+import type { AllocationGroup } from "@/types/allocation-groups";
 
 export function HoldingsPage() {
   const [stocks, setStocks] = useState<StockHolding[]>([]);
   const [manuals, setManuals] = useState<ManualHolding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [groupMap, setGroupMap] = useState<Map<string, AllocationGroup>>(new Map());
 
   // Dialog state
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
@@ -86,9 +89,26 @@ export function HoldingsPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, m] = await Promise.all([getStockHoldings(), getManualHoldings()]);
+      const [s, m, groups] = await Promise.all([
+        getStockHoldings(),
+        getManualHoldings(),
+        getAllocationGroups(),
+      ]);
       setStocks(s);
       setManuals(m);
+
+      // Fetch members for all groups and build map
+      const map = new Map<string, AllocationGroup>();
+      await Promise.all(
+        groups.map(async (group) => {
+          const members = await getGroupMembers(group.id);
+          members.forEach((member) => {
+            const key = `${member.holding_type}-${member.holding_id}`;
+            map.set(key, group);
+          });
+        })
+      );
+      setGroupMap(map);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load holdings");
@@ -241,6 +261,7 @@ export function HoldingsPage() {
                   <TableHead>Ticker</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Labels</TableHead>
+                  <TableHead>Group</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead className="text-right">Shares</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
@@ -263,6 +284,36 @@ export function HoldingsPage() {
                           onAssigned={fetchAll}
                         />
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const key = `stock-${stock.id}`;
+                        const group = groupMap.get(key);
+                        return group ? (
+                          <Badge
+                            variant="secondary"
+                            style={
+                              group.color
+                                ? {
+                                    backgroundColor: group.color + "20",
+                                    borderColor: group.color,
+                                    color: group.color,
+                                  }
+                                : {}
+                            }
+                          >
+                            {group.color && (
+                              <span
+                                className="size-2 rounded-full mr-1"
+                                style={{ backgroundColor: group.color }}
+                              />
+                            )}
+                            {group.name}
+                          </Badge>
+                        ) : (
+                          "—"
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {stock.currency ? <Badge variant="outline">{stock.currency}</Badge> : "—"}
@@ -339,6 +390,7 @@ export function HoldingsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Labels</TableHead>
+                  <TableHead>Group</TableHead>
                   <TableHead className="text-right">Value</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
@@ -358,6 +410,36 @@ export function HoldingsPage() {
                           onAssigned={fetchAll}
                         />
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const key = `manual-${manual.id}`;
+                        const group = groupMap.get(key);
+                        return group ? (
+                          <Badge
+                            variant="secondary"
+                            style={
+                              group.color
+                                ? {
+                                    backgroundColor: group.color + "20",
+                                    borderColor: group.color,
+                                    color: group.color,
+                                  }
+                                : {}
+                            }
+                          >
+                            {group.color && (
+                              <span
+                                className="size-2 rounded-full mr-1"
+                                style={{ backgroundColor: group.color }}
+                              />
+                            )}
+                            {group.name}
+                          </Badge>
+                        ) : (
+                          "—"
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       {manual.value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
