@@ -23,6 +23,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `Request failed (${res.status})`);
   }
+  // 204 No Content has no body to parse
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return res.json();
 }
 
