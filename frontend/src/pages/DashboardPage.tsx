@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon } from "lucide-react";
+import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon, FilterIcon } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ type ChartMode = "holding" | "currency";
 
 const STORAGE_KEY_CURRENCY = "vfinance-display-currency";
 const STORAGE_KEY_GROUP = "vfinance-group-by-currency";
+const STORAGE_KEY_LABEL_FILTER = "vfinance-label-filter-mode";
 
 function formatNumber(n: number, decimals = 2): string {
   return n.toLocaleString("en", {
@@ -68,6 +69,9 @@ export function DashboardPage() {
   );
   const [chartMode, setChartMode] = useState<ChartMode>("holding");
   const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
+  const [labelFilterMode, setLabelFilterMode] = useState<"AND" | "OR">(
+    () => (localStorage.getItem(STORAGE_KEY_LABEL_FILTER) as "AND" | "OR") || "AND"
+  );
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["portfolio"],
@@ -93,10 +97,15 @@ export function DashboardPage() {
   // Filter holdings by selected labels
   const filteredHoldings = useMemo(() => {
     if (selectedLabels.length === 0) return holdings;
+    if (labelFilterMode === "OR") {
+      return holdings.filter((h) =>
+        selectedLabels.some((id) => (h.labels ?? []).some((l) => l.id === id))
+      );
+    }
     return holdings.filter((h) =>
       selectedLabels.every((id) => (h.labels ?? []).some((l) => l.id === id))
     );
-  }, [holdings, selectedLabels]);
+  }, [holdings, selectedLabels, labelFilterMode]);
 
   // Pie data depends on chart mode
   const { pieData, pieColors } = useMemo(() => {
@@ -134,6 +143,14 @@ export function DashboardPage() {
     setGroupByCurrency((prev) => {
       const next = !prev;
       localStorage.setItem(STORAGE_KEY_GROUP, String(next));
+      return next;
+    });
+  }
+
+  function toggleLabelFilterMode() {
+    setLabelFilterMode((prev) => {
+      const next = prev === "AND" ? "OR" : "AND";
+      localStorage.setItem(STORAGE_KEY_LABEL_FILTER, next);
       return next;
     });
   }
@@ -337,6 +354,14 @@ export function DashboardPage() {
                 {allLabels.length > 0 && (
                   <>
                     <span className="text-xs text-muted-foreground ml-1">Filter:</span>
+                    <button
+                      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-muted transition-colors"
+                      onClick={toggleLabelFilterMode}
+                      title={`Switch to ${labelFilterMode === "AND" ? "OR" : "AND"} mode`}
+                    >
+                      <FilterIcon className="size-3" />
+                      {labelFilterMode}
+                    </button>
                     {allLabels.map((l) => {
                       const isSelected = selectedLabels.includes(l.id);
                       return (
