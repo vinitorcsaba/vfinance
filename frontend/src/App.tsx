@@ -88,7 +88,7 @@ function AppContent() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl p-6">
+      <main className="mx-auto max-w-7xl p-6">
         <Tabs defaultValue="dashboard">
           <TabsList>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>

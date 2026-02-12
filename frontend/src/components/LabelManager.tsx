@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PencilIcon, PlusIcon, Trash2Icon, CheckIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,13 +32,16 @@ export function LabelManager() {
     }
   }
 
-  function handleExpand() {
-    const next = !expanded;
-    setExpanded(next);
-    if (next && !fetched.current) {
+  // Fetch labels on mount to show accurate count even when collapsed
+  useEffect(() => {
+    if (!fetched.current) {
       fetched.current = true;
       fetchLabels();
     }
+  }, []);
+
+  function handleExpand() {
+    setExpanded(!expanded);
   }
 
   async function handleCreate() {
