@@ -58,7 +58,12 @@ def export_snapshot_to_sheets(snapshot: Snapshot, user: User) -> str:
 
     sheets_svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
 
-    title = f"Snapshot {snapshot.id} \u2014 {snapshot.taken_at:%Y-%m-%d %H:%M}"
+    title = f"Snapshot {snapshot.id} — {snapshot.taken_at:%Y-%m-%d %H:%M}"
+
+    # Fetch current FX rates for EUR conversion
+    from app.services.portfolio import _fetch_fx_rates
+    fx_rates = _fetch_fx_rates()
+    eur_rate = fx_rates.get("EUR", 5.0)
 
     # Add a new worksheet
     add_resp = sheets_svc.spreadsheets().batchUpdate(
@@ -70,7 +75,7 @@ def export_snapshot_to_sheets(snapshot: Snapshot, user: User) -> str:
                         "title": title,
                         "gridProperties": {
                             "rowCount": len(snapshot.items) + 2,
-                            "columnCount": 6,
+                            "columnCount": 8,
                         },
                     }
                 }
@@ -80,18 +85,26 @@ def export_snapshot_to_sheets(snapshot: Snapshot, user: User) -> str:
     sheet_id = add_resp["replies"][0]["addSheet"]["properties"]["sheetId"]
 
     # Build data rows
-    header = ["Type", "Name", "Shares", "Price", "Value", "Currency"]
+    header = ["Ticker", "Name", "Labels", "Shares", "Price", "Value", "Currency", "Value (EUR)"]
     rows = [header]
     for item in snapshot.items:
+        # Convert value_ron to EUR
+        value_eur = round(item.value_ron / eur_rate, 2)
+
         rows.append([
-            item.holding_type,
+            item.ticker if item.ticker else "",
             item.name,
+            item.labels if item.labels else "",
             item.shares if item.shares is not None else "",
             item.price if item.price is not None else "",
             item.value,
             item.currency,
+            value_eur,
         ])
-    rows.append(["", "", "", "", snapshot.total_value_ron, "RON (total)"])
+
+    # Total row
+    total_eur = round(snapshot.total_value_ron / eur_rate, 2)
+    rows.append(["", "", "", "", "", "", "Total (EUR)", total_eur])
 
     # Write data
     sheets_svc.spreadsheets().values().update(

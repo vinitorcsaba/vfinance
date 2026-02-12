@@ -6,11 +6,14 @@ from pydantic import BaseModel
 class SnapshotItemRead(BaseModel):
     id: int
     holding_type: str
+    ticker: str | None
     name: str
+    labels: str | None
     shares: float | None
     price: float | None
     value: float
     currency: str
+    value_ron: float
 
     model_config = {"from_attributes": True}
 

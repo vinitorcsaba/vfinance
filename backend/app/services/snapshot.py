@@ -17,13 +17,19 @@ def create_snapshot(db: Session) -> Snapshot:
     )
 
     for holding in portfolio["holdings"]:
+        # Convert labels list to comma-separated string of label names
+        label_names = ", ".join(l["name"] for l in holding.get("labels", []))
+
         item = SnapshotItem(
             holding_type=holding["type"],
+            ticker=holding.get("ticker"),
             name=holding["name"],
+            labels=label_names if label_names else None,
             shares=holding.get("shares"),
             price=holding.get("price"),
             value=holding["value"],
             currency=holding["currency"],
+            value_ron=holding["value_ron"],
         )
         snapshot.items.append(item)
 
