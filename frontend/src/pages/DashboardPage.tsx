@@ -40,7 +40,7 @@ const CURRENCY_COLORS: Record<string, string> = {
 };
 const CURRENCY_FALLBACK_COLOR = "#6b7280";
 
-type ChartMode = "holding" | "currency";
+type ChartMode = "holding" | "currency" | "label";
 
 const STORAGE_KEY_CURRENCY = "vfinance-display-currency";
 const STORAGE_KEY_GROUP = "vfinance-group-by-currency";
@@ -109,6 +109,48 @@ export function DashboardPage() {
 
   // Pie data depends on chart mode
   const { pieData, pieColors } = useMemo(() => {
+    if (chartMode === "label") {
+      const byLabel = new Map<number, { name: string; color: string | null; valueRon: number }>();
+      let unlabeledValueRon = 0;
+
+      for (const h of filteredHoldings) {
+        if (!h.labels || h.labels.length === 0) {
+          unlabeledValueRon += h.value_ron;
+        } else {
+          // Split value proportionally among all labels
+          const valuePerLabel = h.value_ron / h.labels.length;
+          for (const label of h.labels) {
+            const existing = byLabel.get(label.id);
+            if (existing) {
+              existing.valueRon += valuePerLabel;
+            } else {
+              byLabel.set(label.id, {
+                name: label.name,
+                color: label.color,
+                valueRon: valuePerLabel,
+              });
+            }
+          }
+        }
+      }
+
+      const entries = Array.from(byLabel.values()).map((labelData) => ({
+        name: labelData.name,
+        value: convertFromRon(labelData.valueRon, dc, fxRates),
+        color: labelData.color,
+      }));
+
+      if (unlabeledValueRon > 0) {
+        entries.push({
+          name: "Unlabeled",
+          value: convertFromRon(unlabeledValueRon, dc, fxRates),
+          color: null,
+        });
+      }
+
+      const colors = entries.map((e) => e.color ?? CURRENCY_FALLBACK_COLOR);
+      return { pieData: entries, pieColors: colors };
+    }
     if (chartMode === "currency") {
       const byCurrency = new Map<string, number>();
       for (const h of filteredHoldings) {
@@ -349,6 +391,16 @@ export function DashboardPage() {
                     onClick={() => setChartMode("currency")}
                   >
                     By Currency
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-xs font-medium border-l transition-colors ${
+                      chartMode === "label"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    }`}
+                    onClick={() => setChartMode("label")}
+                  >
+                    By Label
                   </button>
                 </div>
                 {allLabels.length > 0 && (
