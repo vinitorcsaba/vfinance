@@ -185,7 +185,7 @@ export function DashboardPage() {
     }));
     const colors = entries.map((_, i) => COLORS[i % COLORS.length]);
     return { pieData: entries, pieColors: colors };
-  }, [filteredHoldings, chartMode, dc, fxRates]);
+  }, [filteredHoldings, chartMode, dc, fxRates, selectedLabels]);
 
   const pieTotal = useMemo(
     () => pieData.reduce((sum, d) => sum + d.value, 0),
