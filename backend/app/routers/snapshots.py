@@ -68,11 +68,15 @@ def get_chart_data(
     points = []
     for snapshot in snapshots:
         if not labels:
-            # No filter - use total value
-            total_value = snapshot.total_value_ron
+            # No filter - sum all items in all currencies
+            total_ron = sum(item.value_ron for item in snapshot.items)
+            total_eur = sum(item.value_eur for item in snapshot.items)
+            total_usd = sum(item.value_usd for item in snapshot.items)
         else:
-            # Filter by labels - sum value_ron of matching items
-            total_value = 0.0
+            # Filter by labels - sum values of matching items
+            total_ron = 0.0
+            total_eur = 0.0
+            total_usd = 0.0
             for item in snapshot.items:
                 # Parse labels from JSON
                 item_labels = []
@@ -87,11 +91,15 @@ def get_chart_data(
 
                 # Check if item has ALL requested labels (AND logic)
                 if all(label in item_labels for label in labels):
-                    total_value += item.value_ron
+                    total_ron += item.value_ron
+                    total_eur += item.value_eur
+                    total_usd += item.value_usd
 
         points.append(ChartDataPoint(
             date=snapshot.taken_at.isoformat(),
-            total_ron=total_value,
+            total_ron=round(total_ron, 2),
+            total_eur=round(total_eur, 2),
+            total_usd=round(total_usd, 2),
         ))
 
     return ChartDataResponse(points=points, labels_applied=labels)

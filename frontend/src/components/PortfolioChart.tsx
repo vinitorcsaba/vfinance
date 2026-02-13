@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2Icon } from "lucide-react";
@@ -8,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getChartData } from "@/api/snapshots";
 import { getLabels } from "@/api/labels";
-import { getPortfolio } from "@/api/portfolio";
 import type { ChartDataPoint } from "@/types/snapshot";
 import type { Label } from "@/types/labels";
 
@@ -20,11 +18,6 @@ interface PortfolioChartProps {
 }
 
 export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
-  const { data: portfolio } = useQuery({
-    queryKey: ["portfolio"],
-    queryFn: getPortfolio,
-  });
-
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [allLabels, setAllLabels] = useState<Label[]>([]);
@@ -47,21 +40,25 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
       .finally(() => setLoading(false));
   }, [selectedLabels, dateRange]);
 
-  const convertFromRon = (valueRon: number): number => {
-    if (displayCurrency === "RON") return valueRon;
-    const fxRates = portfolio?.fx_rates || { eur_ron: 1, usd_ron: 1 };
-    if (displayCurrency === "EUR") return valueRon / fxRates.eur_ron;
-    if (displayCurrency === "USD") return valueRon / fxRates.usd_ron;
-    return valueRon;
-  };
+  const chartDataInDisplayCurrency = chartData.map((point) => {
+    // Use the pre-converted value based on display currency
+    let value: number;
+    if (displayCurrency === "EUR") {
+      value = point.total_eur;
+    } else if (displayCurrency === "USD") {
+      value = point.total_usd;
+    } else {
+      value = point.total_ron;
+    }
 
-  const chartDataInDisplayCurrency = chartData.map((point) => ({
-    date: new Date(point.date).toLocaleDateString("en-GB", {
-      month: "short",
-      year: "numeric",
-    }),
-    value: convertFromRon(point.total_ron),
-  }));
+    return {
+      date: new Date(point.date).toLocaleDateString("en-GB", {
+        month: "short",
+        year: "numeric",
+      }),
+      value,
+    };
+  });
 
   const toggleLabel = (labelName: string) => {
     setSelectedLabels((prev) =>

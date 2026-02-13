@@ -14,6 +14,8 @@ class ChartDataPoint(BaseModel):
     """Single data point for portfolio value chart."""
     date: str  # ISO date string
     total_ron: float
+    total_eur: float
+    total_usd: float
 
 
 class ChartDataResponse(BaseModel):
@@ -33,6 +35,8 @@ class SnapshotItemRead(BaseModel):
     value: float
     currency: str
     value_ron: float
+    value_eur: float
+    value_usd: float
 
     model_config = {"from_attributes": True}
 

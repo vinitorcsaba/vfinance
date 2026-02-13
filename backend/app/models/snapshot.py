@@ -34,5 +34,7 @@ class SnapshotItem(Base):
     value: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     value_ron: Mapped[float] = mapped_column(Float, nullable=False)  # Value converted to RON
+    value_eur: Mapped[float] = mapped_column(Float, nullable=False)  # Value converted to EUR
+    value_usd: Mapped[float] = mapped_column(Float, nullable=False)  # Value converted to USD
 
     snapshot: Mapped["Snapshot"] = relationship(back_populates="items")

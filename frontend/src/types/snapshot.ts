@@ -23,6 +23,8 @@ export interface SnapshotItemRead {
   value: number;
   currency: string;
   value_ron: number;
+  value_eur: number;
+  value_usd: number;
 }
 
 export interface SnapshotRead {
@@ -37,6 +39,8 @@ export interface SnapshotRead {
 export interface ChartDataPoint {
   date: string;
   total_ron: number;
+  total_eur: number;
+  total_usd: number;
 }
 
 export interface ChartDataResponse {

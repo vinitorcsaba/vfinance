@@ -104,11 +104,19 @@ export function HistoryPage() {
   };
 
   const convertFromRon = (valueRon: number): number => {
+    // Fallback for snapshot totals (until we migrate Snapshot model)
     if (displayCurrency === "RON") return valueRon;
     const fxRates = portfolio?.fx_rates || { eur_ron: 1, usd_ron: 1 };
     if (displayCurrency === "EUR") return valueRon / fxRates.eur_ron;
     if (displayCurrency === "USD") return valueRon / fxRates.usd_ron;
     return valueRon;
+  };
+
+  const convertValue = (item: { value_ron: number; value_eur: number; value_usd: number }): number => {
+    // Use pre-converted values from snapshot items
+    if (displayCurrency === "EUR") return item.value_eur;
+    if (displayCurrency === "USD") return item.value_usd;
+    return item.value_ron;
   };
 
   const fmt = (n: number) =>
@@ -269,7 +277,7 @@ export function HistoryPage() {
                                         : "—"}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                      {fmt(convertFromRon(item.value_ron))}
+                                      {fmt(convertValue(item))}
                                     </TableCell>
                                   </TableRow>
                                 ))}
