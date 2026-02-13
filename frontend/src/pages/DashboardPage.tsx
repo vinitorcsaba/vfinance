@@ -362,8 +362,8 @@ export function DashboardPage() {
                   conversionRate = fx_rates[ct.currency];
                 } else {
                   // Cross-currency (e.g., USD → EUR)
-                  // Rate = (ct.currency per RON) / (dc per RON) = how many ct.currency per 1 dc
-                  conversionRate = fx_rates[dc] / fx_rates[ct.currency];
+                  // Rate = (dc per RON) / (ct.currency per RON) = how many dc per 1 ct.currency
+                  conversionRate = fx_rates[ct.currency] / fx_rates[dc];
                 }
               }
 
