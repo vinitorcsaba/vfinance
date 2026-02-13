@@ -113,22 +113,38 @@ export function DashboardPage() {
       const byLabel = new Map<number, { name: string; color: string | null; valueRon: number }>();
       let unlabeledValueRon = 0;
 
+      // When label filter is active, only show selected labels
+      const labelsToShow = selectedLabels.length > 0
+        ? new Set(selectedLabels)
+        : null;
+
       for (const h of filteredHoldings) {
         if (!h.labels || h.labels.length === 0) {
           unlabeledValueRon += h.value_ron;
         } else {
-          // Split value proportionally among all labels
-          const valuePerLabel = h.value_ron / h.labels.length;
-          for (const label of h.labels) {
-            const existing = byLabel.get(label.id);
-            if (existing) {
-              existing.valueRon += valuePerLabel;
-            } else {
-              byLabel.set(label.id, {
-                name: label.name,
-                color: label.color,
-                valueRon: valuePerLabel,
-              });
+          // Filter labels to only those we want to show
+          const relevantLabels = labelsToShow
+            ? h.labels.filter(l => labelsToShow.has(l.id))
+            : h.labels;
+
+          if (relevantLabels.length === 0) {
+            // If filtering and this holding has no relevant labels, skip it
+            if (labelsToShow) continue;
+            unlabeledValueRon += h.value_ron;
+          } else {
+            // Split value proportionally among relevant labels
+            const valuePerLabel = h.value_ron / relevantLabels.length;
+            for (const label of relevantLabels) {
+              const existing = byLabel.get(label.id);
+              if (existing) {
+                existing.valueRon += valuePerLabel;
+              } else {
+                byLabel.set(label.id, {
+                  name: label.name,
+                  color: label.color,
+                  valueRon: valuePerLabel,
+                });
+              }
             }
           }
         }
