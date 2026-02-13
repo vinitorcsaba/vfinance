@@ -60,3 +60,14 @@ def export_snapshot(snapshot_id: int, user: User = Depends(get_current_user), db
     db.commit()
 
     return {"sheets_url": url}
+
+
+@router.delete("/{snapshot_id}", status_code=204)
+def delete_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
+    """Delete a snapshot and all its items."""
+    snapshot = db.get(Snapshot, snapshot_id)
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    db.delete(snapshot)
+    db.commit()

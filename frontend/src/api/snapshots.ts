@@ -26,3 +26,7 @@ export function createSnapshot(): Promise<SnapshotRead> {
 export function exportSnapshot(id: number): Promise<{ sheets_url: string }> {
   return request(`${BASE}/snapshots/${id}/export`, { method: "POST" });
 }
+
+export function deleteSnapshot(id: number): Promise<void> {
+  return request(`${BASE}/snapshots/${id}`, { method: "DELETE" });
+}

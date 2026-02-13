@@ -6,6 +6,7 @@ import {
   FileSpreadsheetIcon,
   LinkIcon,
   Loader2Icon,
+  TrashIcon,
   UnlinkIcon,
 } from "lucide-react";
 
@@ -18,7 +19,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listSnapshots, createSnapshot, exportSnapshot } from "@/api/snapshots";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { listSnapshots, createSnapshot, exportSnapshot, deleteSnapshot } from "@/api/snapshots";
 import type { SnapshotSummary } from "@/types/snapshot";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -92,6 +104,16 @@ export function SnapshotsPage() {
     }
   };
 
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteSnapshot(id);
+      toast.success("Snapshot deleted");
+      await fetchSnapshots();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete snapshot");
+    }
+  };
+
   const fmt = (n: number) =>
     n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -161,6 +183,7 @@ export function SnapshotsPage() {
                 <TableHead className="text-right">Total (RON)</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead>Export</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -197,6 +220,32 @@ export function SnapshotsPage() {
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <TrashIcon className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Snapshot?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this snapshot from {fmtDate(s.taken_at)}? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => handleDelete(s.id)}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
