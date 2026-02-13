@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 
 import boto3
 from botocore.exceptions import ClientError
@@ -7,7 +9,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-OBJECT_KEY = "vfinance.db"
+OBJECT_KEY = "vfinance.db"  # Legacy single-DB key (deprecated)
 
 
 def is_spaces_configured() -> bool:
@@ -31,7 +33,10 @@ def _get_s3_client():
 
 
 def download_db() -> bool:
-    """Download DB from Spaces on startup. Returns False if not configured or file missing."""
+    """
+    DEPRECATED: Download single DB from Spaces on startup.
+    Use download_user_db() for per-user databases instead.
+    """
     if not is_spaces_configured():
         logger.info("Spaces not configured — skipping cloud DB download")
         return False
@@ -56,6 +61,42 @@ def download_db() -> bool:
         return True
     except Exception:
         logger.exception("Failed to download DB from Spaces — starting without cloud data")
+        return False
+
+
+def download_user_db(email: str) -> bool:
+    """
+    Download a user's database from cloud storage.
+    Returns True if downloaded, False if not found or failed.
+    """
+    if not is_spaces_configured():
+        logger.info("Spaces not configured — skipping cloud DB download for %s", email)
+        return False
+
+    from app.database import get_user_db_path
+
+    db_path = Path(get_user_db_path(email))
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Object key is the DB filename (e.g., "user_john_doe.db")
+    object_key = os.path.basename(str(db_path))
+
+    try:
+        client = _get_s3_client()
+
+        # Check if the object exists
+        resp = client.list_objects_v2(
+            Bucket=settings.spaces_bucket, Prefix=object_key, MaxKeys=1,
+        )
+        if resp.get("KeyCount", 0) == 0:
+            logger.info("No cloud DB found for %s — will create fresh", email)
+            return False
+
+        client.download_file(settings.spaces_bucket, object_key, str(db_path))
+        logger.info("Downloaded user DB from Spaces (%s → %s)", object_key, db_path)
+        return True
+    except Exception:
+        logger.exception("Failed to download user DB for %s — will create fresh", email)
         return False
 
 

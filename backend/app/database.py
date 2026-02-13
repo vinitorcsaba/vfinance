@@ -52,9 +52,21 @@ def get_user_session(email: str) -> Session:
 
 def init_user_db(email: str):
     """
-    Initialize a user's database (create tables if they don't exist).
-    Should be called on first login.
+    Initialize a user's database.
+    - Checks if DB exists in cloud storage and downloads it
+    - If not in cloud, creates tables locally
+    Should be called on login to ensure user's DB is available.
     """
+    from pathlib import Path
+    from app.services.spaces import is_spaces_configured, download_user_db
+
+    db_path = Path(get_user_db_path(email))
+
+    # If DB doesn't exist locally, try to download from cloud
+    if not db_path.exists() and is_spaces_configured():
+        download_user_db(email)
+
+    # Create tables if DB is new (create_all is idempotent)
     engine = get_user_engine(email)
     Base.metadata.create_all(bind=engine)
 
