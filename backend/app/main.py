@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import Base, engine
 from app.routers.allocation_groups import router as allocation_groups_router
 from app.routers.auth import router as auth_router
 from app.routers.holdings import router as holdings_router
@@ -16,8 +15,7 @@ from app.routers.portfolio import router as portfolio_router
 from app.routers.prices import router as prices_router
 from app.routers.snapshots import router as snapshots_router
 from app.routers.backup import router as backup_router
-from app.services.spaces import download_db
-import app.models  # noqa: F401 — register ORM models with Base.metadata
+import app.models  # noqa: F401 — register ORM models
 
 
 logger = logging.getLogger(__name__)
@@ -25,14 +23,19 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Application lifespan handler.
+
+    Note: With per-user databases, each user's DB is created on their first login.
+    No global database initialization needed at startup.
+    """
     if not settings.auth_secret_key:
         logger.warning("AUTH_SECRET_KEY is not set — sessions will use an empty signing key!")
-    # Restore DB from cloud before creating tables (so create_all is a no-op if DB exists)
-    download_db()
-    # Startup: ensure all tables exist (idempotent, works alongside Alembic)
-    Base.metadata.create_all(bind=engine)
+
+    logger.info("VFinance started with per-user database architecture")
     yield
     # Shutdown
+    logger.info("VFinance shutting down")
 
 
 app = FastAPI(title="VFinance", version="0.1.0", lifespan=lifespan)

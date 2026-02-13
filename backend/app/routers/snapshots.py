@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.snapshot import Snapshot
 from app.models.user import User
@@ -13,13 +13,13 @@ router = APIRouter(prefix="/api/v1/snapshots", tags=["snapshots"], dependencies=
 
 
 @router.post("", response_model=SnapshotRead, status_code=201)
-def take_snapshot(db: Session = Depends(get_db)):
+def take_snapshot(db: Session = Depends(get_user_db)):
     """Create a point-in-time snapshot of the current portfolio."""
     return create_snapshot(db)
 
 
 @router.get("", response_model=list[SnapshotSummary])
-def list_snapshots(db: Session = Depends(get_db)):
+def list_snapshots(db: Session = Depends(get_user_db)):
     """List all snapshots ordered by most recent first."""
     snapshots = db.query(Snapshot).order_by(Snapshot.taken_at.desc()).all()
     return [
@@ -36,7 +36,7 @@ def list_snapshots(db: Session = Depends(get_db)):
 
 
 @router.get("/{snapshot_id}", response_model=SnapshotRead)
-def get_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
+def get_snapshot(snapshot_id: int, db: Session = Depends(get_user_db)):
     """Get a single snapshot with all its items."""
     snapshot = db.get(Snapshot, snapshot_id)
     if not snapshot:
@@ -45,7 +45,7 @@ def get_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{snapshot_id}/export")
-def export_snapshot(snapshot_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def export_snapshot(snapshot_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_user_db)):
     """Export a snapshot to the user's Google Sheets."""
     if not user.google_refresh_token:
         raise HTTPException(status_code=400, detail="Google Sheets not connected")
@@ -63,7 +63,7 @@ def export_snapshot(snapshot_id: int, user: User = Depends(get_current_user), db
 
 
 @router.delete("/{snapshot_id}", status_code=204)
-def delete_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
+def delete_snapshot(snapshot_id: int, db: Session = Depends(get_user_db)):
     """Delete a snapshot and all its items."""
     snapshot = db.get(Snapshot, snapshot_id)
     if not snapshot:

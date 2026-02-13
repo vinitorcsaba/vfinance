@@ -8,17 +8,18 @@ from google.auth.transport import requests as google_requests
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db
-from app.dependencies.auth import get_current_user
+from app.database import get_user_session, init_user_db
+from app.dependencies.auth import get_current_user, get_user_db
 from app.models.user import User
 from app.schemas.auth import GoogleLoginRequest, SheetsConnectRequest, UserResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
-def _create_session_token(user_id: int) -> str:
+def _create_session_token(email: str) -> str:
+    """Create JWT session token with email as subject."""
     payload = {
-        "sub": str(user_id),
+        "sub": email,  # Store email instead of user ID
         "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=settings.auth_token_expire_minutes),
     }
     return jwt.encode(payload, settings.auth_secret_key, algorithm="HS256")
@@ -47,7 +48,7 @@ def _user_response(user: User) -> UserResponse:
 
 
 @router.post("/google", response_model=UserResponse)
-def google_login(body: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
+def google_login(body: GoogleLoginRequest, response: Response):
     if not settings.google_client_id:
         raise HTTPException(status_code=500, detail="Google OAuth is not configured")
 
@@ -70,28 +71,37 @@ def google_login(body: GoogleLoginRequest, response: Response, db: Session = Dep
         if email.lower() not in allowed:
             raise HTTPException(status_code=403, detail="Email not in allowlist")
 
-    # Upsert user
-    google_id = idinfo["sub"]
-    user = db.query(User).filter(User.google_id == google_id).first()
-    if user:
-        user.email = email
-        user.name = idinfo.get("name", "")
-        user.picture_url = idinfo.get("picture")
-        user.last_login = datetime.now(tz=timezone.utc)
-    else:
-        user = User(
-            google_id=google_id,
-            email=email,
-            name=idinfo.get("name", ""),
-            picture_url=idinfo.get("picture"),
-        )
-        db.add(user)
-    db.commit()
-    db.refresh(user)
+    # Initialize user's database (creates tables if first login)
+    init_user_db(email)
 
-    token = _create_session_token(user.id)
-    _set_session_cookie(response, token)
-    return _user_response(user)
+    # Open user's database
+    db = get_user_session(email)
+    try:
+        # Upsert user in their personal database
+        google_id = idinfo["sub"]
+        user = db.query(User).filter(User.google_id == google_id).first()
+        if user:
+            user.email = email
+            user.name = idinfo.get("name", "")
+            user.picture_url = idinfo.get("picture")
+            user.last_login = datetime.now(tz=timezone.utc)
+        else:
+            user = User(
+                google_id=google_id,
+                email=email,
+                name=idinfo.get("name", ""),
+                picture_url=idinfo.get("picture"),
+            )
+            db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        # Create session token with email
+        token = _create_session_token(email)
+        _set_session_cookie(response, token)
+        return _user_response(user)
+    finally:
+        db.close()
 
 
 @router.get("/me", response_model=UserResponse)
@@ -109,7 +119,7 @@ def logout(response: Response):
 def connect_sheets(
     body: SheetsConnectRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_user_db),
 ):
     """Exchange Google auth code for tokens and store on user."""
     if not settings.google_client_id or not settings.google_client_secret:
@@ -142,7 +152,7 @@ def connect_sheets(
 @router.post("/disconnect-sheets", response_model=UserResponse)
 def disconnect_sheets(
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_user_db),
 ):
     """Clear Google Sheets tokens and spreadsheet ID."""
     user.google_access_token = None

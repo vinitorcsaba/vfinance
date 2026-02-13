@@ -6,16 +6,21 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db
+from app.database import get_user_session, init_user_db
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def get_user_email_from_token(request: Request) -> str:
+    """
+    Extract and validate user email from JWT session token.
+    Returns the email which is used to determine which database to open.
+    """
     token = request.cookies.get("session")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
     try:
         payload = jwt.decode(token, settings.auth_secret_key, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
@@ -24,11 +29,42 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         logger.warning("JWT decode failed: %s (token length=%d)", exc, len(token))
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    sub: str | None = payload.get("sub")
-    if sub is None:
+    email: str | None = payload.get("sub")
+    if email is None or "@" not in email:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    user = db.get(User, int(sub))
+    return email
+
+
+def get_user_db(email: str = Depends(get_user_email_from_token)) -> Session:
+    """
+    Get database session for the authenticated user.
+    Opens the user-specific database based on their email.
+    """
+    # Ensure user's database exists (creates it if first login)
+    init_user_db(email)
+
+    db = get_user_session(email)
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_current_user(
+    request: Request,
+    email: str = Depends(get_user_email_from_token),
+    db: Session = Depends(get_user_db),
+) -> User:
+    """
+    Get the current authenticated user from their personal database.
+    Creates User record if it doesn't exist (first login).
+    """
+    # Try to find user by email
+    user = db.query(User).filter(User.email == email).first()
+
+    # This shouldn't happen (user should be created during login),
+    # but handle it gracefully
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
 

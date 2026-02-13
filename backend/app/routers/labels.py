@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
 from app.models.label import Label
@@ -11,12 +11,12 @@ router = APIRouter(prefix="/api/v1", tags=["labels"], dependencies=[Depends(get_
 
 
 @router.get("/labels", response_model=list[LabelRead])
-def list_labels(db: Session = Depends(get_db)):
+def list_labels(db: Session = Depends(get_user_db)):
     return db.query(Label).order_by(Label.name).all()
 
 
 @router.post("/labels", response_model=LabelRead, status_code=201)
-def create_label(body: LabelCreate, db: Session = Depends(get_db)):
+def create_label(body: LabelCreate, db: Session = Depends(get_user_db)):
     existing = db.query(Label).filter(Label.name == body.name).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Label '{body.name}' already exists")
@@ -28,7 +28,7 @@ def create_label(body: LabelCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/labels/{label_id}", response_model=LabelRead)
-def update_label(label_id: int, body: LabelUpdate, db: Session = Depends(get_db)):
+def update_label(label_id: int, body: LabelUpdate, db: Session = Depends(get_user_db)):
     label = db.get(Label, label_id)
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
@@ -45,7 +45,7 @@ def update_label(label_id: int, body: LabelUpdate, db: Session = Depends(get_db)
 
 
 @router.delete("/labels/{label_id}", status_code=204)
-def delete_label(label_id: int, db: Session = Depends(get_db)):
+def delete_label(label_id: int, db: Session = Depends(get_user_db)):
     label = db.get(Label, label_id)
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
@@ -54,7 +54,7 @@ def delete_label(label_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/holdings/stocks/{stock_id}/labels", response_model=list[LabelRead])
-def assign_stock_labels(stock_id: int, body: AssignLabels, db: Session = Depends(get_db)):
+def assign_stock_labels(stock_id: int, body: AssignLabels, db: Session = Depends(get_user_db)):
     stock = db.get(StockHolding, stock_id)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
@@ -66,7 +66,7 @@ def assign_stock_labels(stock_id: int, body: AssignLabels, db: Session = Depends
 
 
 @router.post("/holdings/manual/{holding_id}/labels", response_model=list[LabelRead])
-def assign_manual_labels(holding_id: int, body: AssignLabels, db: Session = Depends(get_db)):
+def assign_manual_labels(holding_id: int, body: AssignLabels, db: Session = Depends(get_user_db)):
     holding = db.get(ManualHolding, holding_id)
     if not holding:
         raise HTTPException(status_code=404, detail="Manual holding not found")

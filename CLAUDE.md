@@ -45,7 +45,9 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **API pattern**: All API routes live under `/api/v1`. Vite dev server proxies `/api` to `localhost:8000` so frontend code always uses relative paths like `/api/v1/...`.
 
-**Database**: SQLite at `data/vfinance.db` (gitignored). SQLAlchemy ORM + Alembic migrations in `backend/alembic/`. The `data/` directory is created automatically. Config via `pydantic-settings` in `backend/app/config.py`, reads from `.env`.
+**Database**: Per-user SQLite databases at `data/user_{email_prefix}.db` (gitignored). Each user gets their own database file based on their Google email. SQLAlchemy ORM + Alembic migrations in `backend/alembic/`. The `data/` directory is created automatically. Config via `pydantic-settings` in `backend/app/config.py`, reads from `.env`.
+
+**Per-user database architecture**: Users log in with Google OAuth → email stored in JWT (`sub` claim) → `get_user_db()` dependency extracts email → opens user-specific database (`data/user_{sanitized_email_prefix}.db`) → all data (User, holdings, snapshots, labels) isolated per user. First login auto-creates database and runs migrations via `init_user_db()`.
 
 **ORM Models** (in `backend/app/models/`):
 - `StockHolding` — ticker (unique), shares (float), currency, display_name, timestamps; has `labels` relationship

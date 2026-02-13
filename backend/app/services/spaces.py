@@ -59,17 +59,30 @@ def download_db() -> bool:
         return False
 
 
-def upload_db() -> int:
-    """Upload current DB to Spaces. Returns file size in bytes. Raises if not configured."""
+def upload_db(db_path: str | None = None, object_key: str | None = None) -> int:
+    """
+    Upload a database file to Spaces. Returns file size in bytes.
+
+    Args:
+        db_path: Path to database file. If None, uses default from settings (deprecated).
+        object_key: S3 object key. If None, uses default OBJECT_KEY.
+    """
     if not is_spaces_configured():
         raise RuntimeError("Spaces is not configured")
 
-    db_path = settings.db_file_path
-    if not db_path.exists():
+    # Handle legacy single-DB case
+    if db_path is None:
+        db_path = str(settings.db_file_path)
+    if object_key is None:
+        object_key = OBJECT_KEY
+
+    from pathlib import Path
+    db_file = Path(db_path)
+    if not db_file.exists():
         raise FileNotFoundError(f"DB file not found: {db_path}")
 
     client = _get_s3_client()
-    client.upload_file(str(db_path), settings.spaces_bucket, OBJECT_KEY)
-    size = db_path.stat().st_size
-    logger.info("Uploaded DB to Spaces (%s/%s, %d bytes)", settings.spaces_bucket, OBJECT_KEY, size)
+    client.upload_file(str(db_file), settings.spaces_bucket, object_key)
+    size = db_file.stat().st_size
+    logger.info("Uploaded DB to Spaces (%s/%s, %d bytes)", settings.spaces_bucket, object_key, size)
     return size

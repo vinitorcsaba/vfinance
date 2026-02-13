@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, insert, select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.allocation_group import (
     AllocationGroup,
@@ -28,13 +28,13 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[AllocationGroupRead])
-def list_allocation_groups(db: Session = Depends(get_db)):
+def list_allocation_groups(db: Session = Depends(get_user_db)):
     """List all allocation groups."""
     return db.query(AllocationGroup).order_by(AllocationGroup.name).all()
 
 
 @router.post("", response_model=AllocationGroupRead, status_code=201)
-def create_allocation_group(body: AllocationGroupCreate, db: Session = Depends(get_db)):
+def create_allocation_group(body: AllocationGroupCreate, db: Session = Depends(get_user_db)):
     """Create a new allocation group."""
     existing = db.query(AllocationGroup).filter(AllocationGroup.name == body.name).first()
     if existing:
@@ -48,7 +48,7 @@ def create_allocation_group(body: AllocationGroupCreate, db: Session = Depends(g
 
 @router.put("/{group_id}", response_model=AllocationGroupRead)
 def update_allocation_group(
-    group_id: int, body: AllocationGroupUpdate, db: Session = Depends(get_db)
+    group_id: int, body: AllocationGroupUpdate, db: Session = Depends(get_user_db)
 ):
     """Update an allocation group."""
     group = db.get(AllocationGroup, group_id)
@@ -73,7 +73,7 @@ def update_allocation_group(
 
 
 @router.delete("/{group_id}", status_code=204)
-def delete_allocation_group(group_id: int, db: Session = Depends(get_db)):
+def delete_allocation_group(group_id: int, db: Session = Depends(get_user_db)):
     """Delete an allocation group (CASCADE removes assignments)."""
     group = db.get(AllocationGroup, group_id)
     if not group:
@@ -84,7 +84,7 @@ def delete_allocation_group(group_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{group_id}/assign", status_code=204)
 def assign_allocations(
-    group_id: int, body: AssignAllocations, db: Session = Depends(get_db)
+    group_id: int, body: AssignAllocations, db: Session = Depends(get_user_db)
 ):
     """Assign holdings to an allocation group with target percentages.
 
@@ -172,7 +172,7 @@ def assign_allocations(
 
 
 @router.get("/{group_id}/members", response_model=list[AllocationMemberRead])
-def get_group_members(group_id: int, db: Session = Depends(get_db)):
+def get_group_members(group_id: int, db: Session = Depends(get_user_db)):
     """Get all holdings assigned to a group with their target percentages."""
     # Verify group exists
     group = db.get(AllocationGroup, group_id)
@@ -226,7 +226,7 @@ def get_group_members(group_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{group_id}/analysis", response_model=AllocationGroupAnalysis)
 def get_group_analysis(
-    group_id: int, display_currency: str = "RON", db: Session = Depends(get_db)
+    group_id: int, display_currency: str = "RON", db: Session = Depends(get_user_db)
 ):
     """Get rebalancing analysis for a group (current vs target allocations)."""
     # Verify group exists

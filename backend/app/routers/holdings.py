@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
 from app.services.price import lookup_ticker, normalize_ticker
@@ -23,12 +23,12 @@ router = APIRouter(prefix="/api/v1/holdings", tags=["holdings"], dependencies=[D
 
 
 @router.get("/stocks", response_model=list[StockHoldingRead])
-def list_stocks(db: Session = Depends(get_db)):
+def list_stocks(db: Session = Depends(get_user_db)):
     return db.query(StockHolding).order_by(StockHolding.ticker).all()
 
 
 @router.post("/stocks", response_model=StockHoldingRead, status_code=201)
-def create_stock(body: StockHoldingCreate, db: Session = Depends(get_db)):
+def create_stock(body: StockHoldingCreate, db: Session = Depends(get_user_db)):
     normalized = normalize_ticker(body.ticker)
     existing = db.query(StockHolding).filter(StockHolding.ticker == normalized).first()
     if existing:
@@ -57,7 +57,7 @@ def create_stock(body: StockHoldingCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/stocks/{stock_id}", response_model=StockHoldingRead)
-def update_stock(stock_id: int, body: StockHoldingUpdate, db: Session = Depends(get_db)):
+def update_stock(stock_id: int, body: StockHoldingUpdate, db: Session = Depends(get_user_db)):
     stock = db.get(StockHolding, stock_id)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
@@ -81,7 +81,7 @@ def update_stock(stock_id: int, body: StockHoldingUpdate, db: Session = Depends(
 
 
 @router.post("/stocks/{stock_id}/add-shares", response_model=StockHoldingRead)
-def add_stock_shares(stock_id: int, body: StockAddShares, db: Session = Depends(get_db)):
+def add_stock_shares(stock_id: int, body: StockAddShares, db: Session = Depends(get_user_db)):
     stock = db.get(StockHolding, stock_id)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
@@ -92,7 +92,7 @@ def add_stock_shares(stock_id: int, body: StockAddShares, db: Session = Depends(
 
 
 @router.delete("/stocks/{stock_id}", status_code=204)
-def delete_stock(stock_id: int, db: Session = Depends(get_db)):
+def delete_stock(stock_id: int, db: Session = Depends(get_user_db)):
     stock = db.get(StockHolding, stock_id)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
@@ -104,12 +104,12 @@ def delete_stock(stock_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/manual", response_model=list[ManualHoldingRead])
-def list_manual(db: Session = Depends(get_db)):
+def list_manual(db: Session = Depends(get_user_db)):
     return db.query(ManualHolding).order_by(ManualHolding.name).all()
 
 
 @router.post("/manual", response_model=ManualHoldingRead, status_code=201)
-def create_manual(body: ManualHoldingCreate, db: Session = Depends(get_db)):
+def create_manual(body: ManualHoldingCreate, db: Session = Depends(get_user_db)):
     holding = ManualHolding(
         name=body.name,
         value=body.value,
@@ -122,7 +122,7 @@ def create_manual(body: ManualHoldingCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/manual/{holding_id}", response_model=ManualHoldingRead)
-def update_manual(holding_id: int, body: ManualHoldingUpdate, db: Session = Depends(get_db)):
+def update_manual(holding_id: int, body: ManualHoldingUpdate, db: Session = Depends(get_user_db)):
     holding = db.get(ManualHolding, holding_id)
     if not holding:
         raise HTTPException(status_code=404, detail="Manual holding not found")
@@ -137,7 +137,7 @@ def update_manual(holding_id: int, body: ManualHoldingUpdate, db: Session = Depe
 
 
 @router.delete("/manual/{holding_id}", status_code=204)
-def delete_manual(holding_id: int, db: Session = Depends(get_db)):
+def delete_manual(holding_id: int, db: Session = Depends(get_user_db)):
     holding = db.get(ManualHolding, holding_id)
     if not holding:
         raise HTTPException(status_code=404, detail="Manual holding not found")
@@ -146,7 +146,7 @@ def delete_manual(holding_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/manual/{holding_id}/add-value", response_model=ManualHoldingRead)
-def add_manual_value(holding_id: int, body: ManualAddValue, db: Session = Depends(get_db)):
+def add_manual_value(holding_id: int, body: ManualAddValue, db: Session = Depends(get_user_db)):
     holding = db.get(ManualHolding, holding_id)
     if not holding:
         raise HTTPException(status_code=404, detail="Manual holding not found")
