@@ -58,11 +58,13 @@ def init_user_db(email: str):
     - Runs Alembic migrations to ensure schema is up to date
     Should be called on login to ensure user's DB is available.
     """
+    import logging
     from pathlib import Path
     from alembic import command
     from alembic.config import Config
     from app.services.spaces import is_spaces_configured, download_user_db
 
+    logger = logging.getLogger(__name__)
     db_path = Path(get_user_db_path(email))
 
     # If DB doesn't exist locally, try to download from cloud
@@ -73,21 +75,31 @@ def init_user_db(email: str):
     engine = get_user_engine(email)
     db_url = str(engine.url)
 
-    # Create Alembic config programmatically
-    # Find alembic.ini relative to this file's directory
-    import sys
-    if "backend" in os.getcwd():
-        # Running from backend directory (production)
-        alembic_ini = "alembic.ini"
-    else:
-        # Running from project root (local dev)
-        alembic_ini = "backend/alembic.ini"
+    try:
+        # Create Alembic config programmatically
+        # Find alembic.ini - try multiple locations
+        backend_dir = Path(__file__).parent.parent  # backend/app -> backend
+        alembic_ini_path = backend_dir / "alembic.ini"
 
-    alembic_cfg = Config(alembic_ini)
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        if not alembic_ini_path.exists():
+            # Fallback: try relative to cwd
+            alembic_ini_path = Path("alembic.ini") if "backend" in os.getcwd() else Path("backend/alembic.ini")
 
-    # Run migrations to head
-    command.upgrade(alembic_cfg, "head")
+        logger.info(f"Using alembic.ini at: {alembic_ini_path}")
+
+        alembic_cfg = Config(str(alembic_ini_path))
+        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+        # Suppress Alembic output to avoid cluttering logs
+        alembic_cfg.attributes["configure_logger"] = False
+
+        # Run migrations to head
+        command.upgrade(alembic_cfg, "head")
+        logger.info(f"Successfully migrated database for user {email}")
+    except Exception as e:
+        # Fall back to create_all if migrations fail
+        logger.warning(f"Alembic migration failed for user {email}, falling back to create_all: {e}")
+        Base.metadata.create_all(bind=engine)
 
 
 def get_db():
