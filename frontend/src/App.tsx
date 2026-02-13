@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardPage } from "@/pages/DashboardPage"
 import { HoldingsPage } from "@/pages/HoldingsPage"
 import { SnapshotsPage } from "@/pages/SnapshotsPage"
+import { HistoryPage } from "@/pages/HistoryPage"
 import { AllocationGroupsPage } from "@/pages/AllocationGroupsPage"
 import { LoginPage } from "@/pages/LoginPage"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
@@ -95,6 +96,7 @@ function AppContent() {
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="holdings">Holdings</TabsTrigger>
             <TabsTrigger value="allocations">Allocations</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-6">
@@ -105,6 +107,9 @@ function AppContent() {
           </TabsContent>
           <TabsContent value="allocations" className="mt-6">
             <AllocationGroupsPage />
+          </TabsContent>
+          <TabsContent value="history" className="mt-6">
+            <HistoryPage />
           </TabsContent>
           <TabsContent value="snapshots" className="mt-6">
             <SnapshotsPage />

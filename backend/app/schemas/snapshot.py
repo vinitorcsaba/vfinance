@@ -1,6 +1,25 @@
+import json
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+class LabelInSnapshot(BaseModel):
+    """Label data captured in snapshot (name + color)."""
+    name: str
+    color: str | None = None
+
+
+class ChartDataPoint(BaseModel):
+    """Single data point for portfolio value chart."""
+    date: str  # ISO date string
+    total_ron: float
+
+
+class ChartDataResponse(BaseModel):
+    """Response for chart data endpoint."""
+    points: list[ChartDataPoint]
+    labels_applied: list[str]  # Label names that were used to filter
 
 
 class SnapshotItemRead(BaseModel):
@@ -8,7 +27,7 @@ class SnapshotItemRead(BaseModel):
     holding_type: str
     ticker: str | None
     name: str
-    labels: str | None
+    labels: list[LabelInSnapshot]
     shares: float | None
     price: float | None
     value: float
@@ -16,6 +35,21 @@ class SnapshotItemRead(BaseModel):
     value_ron: float
 
     model_config = {"from_attributes": True}
+
+    @field_validator("labels", mode="before")
+    @classmethod
+    def parse_labels_json(cls, v):
+        """Parse labels from JSON string to list of label objects."""
+        if v is None or v == "":
+            return []
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
+            except json.JSONDecodeError:
+                # Fallback for old comma-separated format
+                return [{"name": name.strip(), "color": None} for name in v.split(",") if name.strip()]
+        return v
 
 
 class SnapshotRead(BaseModel):

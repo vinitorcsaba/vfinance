@@ -80,6 +80,10 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **Snapshot deletion**: Snapshots can be deleted via trash icon button with confirmation dialog. Backend endpoint: `DELETE /api/v1/snapshots/{id}` (returns 204). Cascade deletes all snapshot items. Frontend uses `AlertDialog` component for confirmation popup.
 
+**Monthly snapshot history** (FIN-20): Automatic monthly snapshots via APScheduler (runs on 1st of each month at 00:05, 24h misfire grace time). SnapshotItem stores labels as JSON with full objects (`[{"name": "Tech", "color": "#2563eb"}]`). History page (`HistoryPage.tsx`) displays snapshot list with expandable rows showing full holdings details at each point in time. Currency selector converts RON values to display currency. Scheduler scans `data/` directory for all user databases and creates snapshots for each user. Schema `LabelInSnapshot` interface for parsed label data.
+
+**Portfolio value charts** (FIN-21): Time-series area chart (`PortfolioChart.tsx`) on History page shows portfolio value trend over time. Recharts AreaChart with gradient fill, date range selector (3M/6M/1Y/All), label multi-select filter, and currency conversion. Backend endpoint `GET /api/v1/snapshots/chart-data?labels=Tech&labels=Crypto&range=6m` (defined before `/{snapshot_id}` to avoid FastAPI int parsing). Returns `ChartDataResponse` with `points: [{date, total_ron}]` and `labels_applied`. Label filtering uses AND logic, parsing JSON labels from snapshot items. Empty state with CTA when no snapshots exist.
+
 **Digital Ocean deployment**: `.do/app.yaml` configures automatic deployments with PRE_DEPLOY job that runs `alembic upgrade head` before each deployment. Dockerfile CMD also includes migrations as fallback. Environment variables: `VITE_GOOGLE_CLIENT_ID` (build-time), `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (runtime).
 
 **UI stack**: Shadcn/ui components + Tailwind CSS v4 (uses `@tailwindcss/vite` plugin, not PostCSS). Path alias `@/*` → `src/*` configured in both `vite.config.ts` and `tsconfig.json`.

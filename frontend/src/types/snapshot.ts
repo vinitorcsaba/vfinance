@@ -1,3 +1,8 @@
+export interface LabelInSnapshot {
+  name: string;
+  color: string | null;
+}
+
 export interface SnapshotSummary {
   id: number;
   taken_at: string;
@@ -10,11 +15,14 @@ export interface SnapshotSummary {
 export interface SnapshotItemRead {
   id: number;
   holding_type: string;
+  ticker: string | null;
   name: string;
+  labels: LabelInSnapshot[];
   shares: number | null;
   price: number | null;
   value: number;
   currency: string;
+  value_ron: number;
 }
 
 export interface SnapshotRead {
@@ -24,4 +32,14 @@ export interface SnapshotRead {
   exported_to_sheets: boolean;
   sheets_url: string | null;
   items: SnapshotItemRead[];
+}
+
+export interface ChartDataPoint {
+  date: string;
+  total_ron: number;
+}
+
+export interface ChartDataResponse {
+  points: ChartDataPoint[];
+  labels_applied: string[];
 }

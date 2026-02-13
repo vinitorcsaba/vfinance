@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+import json
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.snapshot import Snapshot
 from app.models.user import User
-from app.schemas.snapshot import SnapshotRead, SnapshotSummary
+from app.schemas.snapshot import ChartDataPoint, ChartDataResponse, SnapshotRead, SnapshotSummary
 from app.services.sheets import export_snapshot_to_sheets
 from app.services.snapshot import create_snapshot
 
@@ -33,6 +35,66 @@ def list_snapshots(db: Session = Depends(get_user_db)):
         )
         for s in snapshots
     ]
+
+
+@router.get("/chart-data", response_model=ChartDataResponse)
+def get_chart_data(
+    labels: list[str] = Query(default=[]),
+    range: str = Query(default="all", pattern="^(3m|6m|1y|all)$"),
+    db: Session = Depends(get_user_db),
+):
+    """
+    Get portfolio value chart data over time.
+
+    Returns time-series data points with optional label filtering.
+    If labels are specified, only holdings matching those labels are included in the value calculation.
+    Must be defined before /{snapshot_id} to avoid FastAPI parsing 'chart-data' as an integer.
+    """
+    # Calculate cutoff date based on range
+    cutoff_date = None
+    if range == "3m":
+        cutoff_date = datetime.now() - timedelta(days=90)
+    elif range == "6m":
+        cutoff_date = datetime.now() - timedelta(days=180)
+    elif range == "1y":
+        cutoff_date = datetime.now() - timedelta(days=365)
+
+    # Fetch snapshots within range
+    query = db.query(Snapshot).order_by(Snapshot.taken_at.asc())
+    if cutoff_date:
+        query = query.filter(Snapshot.taken_at >= cutoff_date)
+    snapshots = query.all()
+
+    points = []
+    for snapshot in snapshots:
+        if not labels:
+            # No filter - use total value
+            total_value = snapshot.total_value_ron
+        else:
+            # Filter by labels - sum value_ron of matching items
+            total_value = 0.0
+            for item in snapshot.items:
+                # Parse labels from JSON
+                item_labels = []
+                if item.labels:
+                    try:
+                        parsed = json.loads(item.labels)
+                        if isinstance(parsed, list):
+                            item_labels = [label["name"] for label in parsed if isinstance(label, dict) and "name" in label]
+                    except json.JSONDecodeError:
+                        # Fallback for old comma-separated format
+                        item_labels = [name.strip() for name in item.labels.split(",") if name.strip()]
+
+                # Check if item has ALL requested labels (AND logic)
+                if all(label in item_labels for label in labels):
+                    total_value += item.value_ron
+
+        points.append(ChartDataPoint(
+            date=snapshot.taken_at.isoformat(),
+            total_ron=total_value,
+        ))
+
+    return ChartDataResponse(points=points, labels_applied=labels)
 
 
 @router.get("/{snapshot_id}", response_model=SnapshotRead)

@@ -1,3 +1,4 @@
+import json
 from sqlalchemy.orm import Session
 
 from app.models.snapshot import Snapshot, SnapshotItem
@@ -17,14 +18,15 @@ def create_snapshot(db: Session) -> Snapshot:
     )
 
     for holding in portfolio["holdings"]:
-        # Convert labels list to comma-separated string of label names
-        label_names = ", ".join(l["name"] for l in holding.get("labels", []))
+        # Convert labels list to JSON string with full label objects (name + color)
+        labels = holding.get("labels", [])
+        labels_json = json.dumps(labels) if labels else None
 
         item = SnapshotItem(
             holding_type=holding["type"],
             ticker=holding.get("ticker"),
             name=holding["name"],
-            labels=label_names if label_names else None,
+            labels=labels_json,
             shares=holding.get("shares"),
             price=holding.get("price"),
             value=holding["value"],

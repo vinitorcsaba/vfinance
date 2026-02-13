@@ -1,4 +1,4 @@
-import type { SnapshotRead, SnapshotSummary } from "@/types/snapshot";
+import type { ChartDataResponse, SnapshotRead, SnapshotSummary } from "@/types/snapshot";
 
 const BASE = "/api/v1";
 
@@ -23,6 +23,10 @@ export function listSnapshots(): Promise<SnapshotSummary[]> {
   return request(`${BASE}/snapshots`);
 }
 
+export function getSnapshot(id: number): Promise<SnapshotRead> {
+  return request(`${BASE}/snapshots/${id}`);
+}
+
 export function createSnapshot(): Promise<SnapshotRead> {
   return request(`${BASE}/snapshots`, { method: "POST" });
 }
@@ -33,4 +37,19 @@ export function exportSnapshot(id: number): Promise<{ sheets_url: string }> {
 
 export function deleteSnapshot(id: number): Promise<void> {
   return request(`${BASE}/snapshots/${id}`, { method: "DELETE" });
+}
+
+export function getChartData(params: {
+  labels?: string[];
+  range?: "3m" | "6m" | "1y" | "all";
+}): Promise<ChartDataResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.labels) {
+    params.labels.forEach((label) => searchParams.append("labels", label));
+  }
+  if (params.range) {
+    searchParams.append("range", params.range);
+  }
+  const queryString = searchParams.toString();
+  return request(`${BASE}/snapshots/chart-data${queryString ? `?${queryString}` : ""}`);
 }

@@ -101,12 +101,14 @@ vfinance/
 | 15 | FIN-16 | Add shares/value to existing holdings | Medium | "+" button on holding rows to increment shares/value instead of editing; new API endpoints |
 | 16 | FIN-17 | Labels system for holdings | Medium | ✅ Create/assign labels for categorization; new Label model + junction tables; migration required |
 | 17 | FIN-18 | Dashboard currency selector and grouping | Medium | ✅ Choose display currency for totals/charts, group by currency toggle; frontend-only |
-| 18 | FIN-22 | Allocation chart by currency/label + more colors | Medium | ✅ Pie chart view modes (by holding / by currency), label filtering on chart, expanded color palette (16 colors); frontend-only |
-| 19 | FIN-23 | Stock search by name | Medium | ✅ Search stocks by company name via yfinance Search API; dropdown results in add-stock dialog with keyboard navigation; auto-fills ticker/currency/name |
-| 20 | FIN-25 | Dashboard improvements | Medium | ✅ Ticker on pie chart, AND label filter, remove Type column, better label highlight states, filtered total display, custom legend with percentages; frontend-only |
-| 21 | FIN-31 | Google Sheets export via user OAuth | Medium | ✅ Replace service-account Sheets export with user OAuth; progressive consent flow, auto-create spreadsheet in user's Drive, token refresh; removes gspread dependency |
+| 18 | FIN-20 | Monthly snapshot history view | Medium | ✅ Automatic monthly snapshots + History tab; labels as JSON in snapshot items; expandable rows showing full holdings; APScheduler cron job |
+| 19 | FIN-21 | Portfolio value charts over time | Low | ✅ Time-series area chart on History page; Recharts AreaChart with label filter and date range selector; chart-data endpoint with label filtering |
+| 20 | FIN-22 | Allocation chart by currency/label + more colors | Medium | ✅ Pie chart view modes (by holding / by currency), label filtering on chart, expanded color palette (16 colors); frontend-only |
+| 21 | FIN-23 | Stock search by name | Medium | ✅ Search stocks by company name via yfinance Search API; dropdown results in add-stock dialog with keyboard navigation; auto-fills ticker/currency/name |
+| 22 | FIN-25 | Dashboard improvements | Medium | ✅ Ticker on pie chart, AND label filter, remove Type column, better label highlight states, filtered total display, custom legend with percentages; frontend-only |
+| 23 | FIN-31 | Google Sheets export via user OAuth | Medium | ✅ Replace service-account Sheets export with user OAuth; progressive consent flow, auto-create spreadsheet in user's Drive, token refresh; removes gspread dependency |
 
-Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-22 → FIN-23 → FIN-25 → FIN-31 (sequenced to avoid merge conflicts in shared files).
+Implementation order: FIN-15 → FIN-16 → FIN-17 → FIN-18 → FIN-20 → FIN-21 → FIN-22 → FIN-23 → FIN-25 → FIN-31 (sequenced to avoid merge conflicts in shared files).
 
 ## Key Design Decisions
 

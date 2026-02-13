@@ -15,6 +15,7 @@ from app.routers.portfolio import router as portfolio_router
 from app.routers.prices import router as prices_router
 from app.routers.snapshots import router as snapshots_router
 from app.routers.backup import router as backup_router
+from app.services.scheduler import start_scheduler, stop_scheduler
 import app.models  # noqa: F401 — register ORM models
 
 
@@ -33,8 +34,14 @@ async def lifespan(app: FastAPI):
         logger.warning("AUTH_SECRET_KEY is not set — sessions will use an empty signing key!")
 
     logger.info("VFinance started with per-user database architecture")
+
+    # Start background scheduler for monthly snapshots
+    start_scheduler()
+
     yield
+
     # Shutdown
+    stop_scheduler()
     logger.info("VFinance shutting down")
 
 
