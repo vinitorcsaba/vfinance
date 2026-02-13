@@ -352,17 +352,20 @@ export function DashboardPage() {
               const ctDisplay = convertFromRon(ct.total_ron, dc, fx_rates);
 
               // Calculate the conversion rate from ct.currency to dc
+              // Rate represents: display currency per 1 unit of source currency
               let conversionRate: number | null = null;
               if (ct.currency !== dc) {
                 if (ct.currency === "RON") {
-                  // RON → other currency
-                  conversionRate = fx_rates[dc];
+                  // RON → other currency (e.g., RON → EUR)
+                  // fx_rates[dc] gives "RON per dc", so invert to get "dc per RON"
+                  conversionRate = 1 / fx_rates[dc];
                 } else if (dc === "RON") {
-                  // Other currency → RON
+                  // Other currency → RON (e.g., EUR → RON)
+                  // fx_rates[ct.currency] gives "RON per ct.currency" which is correct
                   conversionRate = fx_rates[ct.currency];
                 } else {
                   // Cross-currency (e.g., USD → EUR)
-                  // Rate = (dc per RON) / (ct.currency per RON) = how many dc per 1 ct.currency
+                  // Rate = (dc per RON) / (ct.currency per RON) = dc per ct.currency
                   conversionRate = fx_rates[ct.currency] / fx_rates[dc];
                 }
               }
