@@ -350,6 +350,23 @@ export function DashboardPage() {
 
             {currency_totals.map((ct) => {
               const ctDisplay = convertFromRon(ct.total_ron, dc, fx_rates);
+
+              // Calculate the conversion rate from ct.currency to dc
+              let conversionRate: number | null = null;
+              if (ct.currency !== dc) {
+                if (ct.currency === "RON") {
+                  // RON → other currency
+                  conversionRate = fx_rates[dc];
+                } else if (dc === "RON") {
+                  // Other currency → RON
+                  conversionRate = fx_rates[ct.currency];
+                } else {
+                  // Cross-currency (e.g., USD → EUR)
+                  // Rate = (ct.currency per RON) / (dc per RON) = how many ct.currency per 1 dc
+                  conversionRate = fx_rates[dc] / fx_rates[ct.currency];
+                }
+              }
+
               return (
                 <Card key={ct.currency}>
                   <CardHeader className="pb-2">
@@ -361,14 +378,12 @@ export function DashboardPage() {
                     <p className="text-xl font-semibold">
                       {formatNumber(ct.total)} {ct.currency}
                     </p>
-                    {ct.currency !== dc && (
+                    {ct.currency !== dc && conversionRate && (
                       <p className="text-sm text-muted-foreground">
                         = {formatNumber(ctDisplay)} {dc}
-                        {fx_rates[dc] && (
-                          <span className="ml-1">
-                            (rate: {fx_rates[dc].toFixed(4)})
-                          </span>
-                        )}
+                        <span className="ml-1">
+                          (rate: {conversionRate.toFixed(4)})
+                        </span>
                       </p>
                     )}
                   </CardContent>
