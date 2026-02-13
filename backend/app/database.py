@@ -55,9 +55,12 @@ def init_user_db(email: str):
     Initialize a user's database.
     - Checks if DB exists in cloud storage and downloads it
     - If not in cloud, creates tables locally
+    - Runs Alembic migrations to ensure schema is up to date
     Should be called on login to ensure user's DB is available.
     """
     from pathlib import Path
+    from alembic import command
+    from alembic.config import Config
     from app.services.spaces import is_spaces_configured, download_user_db
 
     db_path = Path(get_user_db_path(email))
@@ -66,9 +69,25 @@ def init_user_db(email: str):
     if not db_path.exists() and is_spaces_configured():
         download_user_db(email)
 
-    # Create tables if DB is new (create_all is idempotent)
+    # Run Alembic migrations to create or update schema
     engine = get_user_engine(email)
-    Base.metadata.create_all(bind=engine)
+    db_url = str(engine.url)
+
+    # Create Alembic config programmatically
+    # Find alembic.ini relative to this file's directory
+    import sys
+    if "backend" in os.getcwd():
+        # Running from backend directory (production)
+        alembic_ini = "alembic.ini"
+    else:
+        # Running from project root (local dev)
+        alembic_ini = "backend/alembic.ini"
+
+    alembic_cfg = Config(alembic_ini)
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    # Run migrations to head
+    command.upgrade(alembic_cfg, "head")
 
 
 def get_db():
