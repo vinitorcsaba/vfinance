@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/table";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -41,6 +40,8 @@ export function SnapshotsPage() {
   const [taking, setTaking] = useState(false);
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -108,9 +109,13 @@ export function SnapshotsPage() {
     try {
       await deleteSnapshot(id);
       toast.success("Snapshot deleted");
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
       await fetchSnapshots();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to delete snapshot");
+      setDeleteDialogOpen(false);
+      setDeletingId(null);
     }
   };
 
@@ -222,7 +227,17 @@ export function SnapshotsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <AlertDialog>
+                    <AlertDialog
+                      open={deleteDialogOpen && deletingId === s.id}
+                      onOpenChange={(open) => {
+                        setDeleteDialogOpen(open);
+                        if (open) {
+                          setDeletingId(s.id);
+                        } else {
+                          setDeletingId(null);
+                        }
+                      }}
+                    >
                       <AlertDialogTrigger asChild>
                         <Button variant="ghost" size="sm">
                           <TrashIcon className="h-4 w-4 text-destructive" />
@@ -237,12 +252,12 @@ export function SnapshotsPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
+                          <Button
                             variant="destructive"
                             onClick={() => handleDelete(s.id)}
                           >
                             Delete
-                          </AlertDialogAction>
+                          </Button>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
