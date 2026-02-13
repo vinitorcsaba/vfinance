@@ -364,9 +364,9 @@ export function DashboardPage() {
                     {ct.currency !== dc && (
                       <p className="text-sm text-muted-foreground">
                         = {formatNumber(ctDisplay)} {dc}
-                        {fx_rates[ct.currency] && (
+                        {fx_rates[dc] && (
                           <span className="ml-1">
-                            (rate: {fx_rates[ct.currency].toFixed(4)})
+                            (rate: {fx_rates[dc].toFixed(4)})
                           </span>
                         )}
                       </p>
