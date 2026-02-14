@@ -52,7 +52,7 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (sharesToAdd <= 0 || !date || Number(pricePerShare) <= 0) return;
+    if (sharesToAdd === 0 || !date || Number(pricePerShare) <= 0) return;
 
     setSubmitting(true);
     setError("");
@@ -83,13 +83,12 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPr
           </p>
 
           <div className="grid gap-2">
-            <Label htmlFor="add-shares">Shares to add</Label>
+            <Label htmlFor="add-shares">Shares to add (negative to sell)</Label>
             <Input
               id="add-shares"
               type="number"
               step="any"
-              min="0.0001"
-              placeholder="Number of shares"
+              placeholder="Number of shares (use negative for selling)"
               value={shares}
               onChange={(e) => setShares(e.target.value)}
               autoFocus
@@ -133,7 +132,7 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPr
             />
           </div>
 
-          {sharesToAdd > 0 && (
+          {sharesToAdd !== 0 && (
             <p className="text-sm text-muted-foreground">
               New total: <span className="font-medium text-foreground">{newTotal}</span>
             </p>
@@ -147,10 +146,10 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPr
             </Button>
             <Button
               type="submit"
-              disabled={sharesToAdd <= 0 || !date || Number(pricePerShare) <= 0 || submitting}
+              disabled={sharesToAdd === 0 || !date || Number(pricePerShare) <= 0 || submitting}
             >
               {submitting && <Loader2Icon className="animate-spin" />}
-              Add Shares
+              {sharesToAdd < 0 ? "Remove Shares" : "Add Shares"}
             </Button>
           </DialogFooter>
         </form>

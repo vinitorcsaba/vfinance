@@ -118,7 +118,10 @@
       "Bash(ls:*)",
       "Bash(sqlite3:*)",
       "Bash(../venv/Scripts/python.exe:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__arcade-linear__Linear_UpdateIssue",
+      "WebSearch",
+      "Bash(npm run type-check:*)"
     ]
   }
 }

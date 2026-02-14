@@ -105,13 +105,16 @@ def init_user_db(email: str):
         # Create tables if they don't exist
         Base.metadata.create_all(bind=engine)
 
-        # Manually add missing columns to snapshot_items if needed
+        # Manually add missing columns and tables if needed
         try:
             inspector = inspect(engine)
-            if "snapshot_items" in inspector.get_table_names():
-                columns = [col["name"] for col in inspector.get_columns("snapshot_items")]
+            table_names = inspector.get_table_names()
 
-                with engine.begin() as conn:
+            with engine.begin() as conn:
+                # Add missing columns to snapshot_items
+                if "snapshot_items" in table_names:
+                    columns = [col["name"] for col in inspector.get_columns("snapshot_items")]
+
                     if "value_eur" not in columns:
                         logger.info("Adding value_eur column to snapshot_items")
                         conn.execute(text("ALTER TABLE snapshot_items ADD COLUMN value_eur FLOAT NOT NULL DEFAULT 0.0"))
@@ -122,7 +125,48 @@ def init_user_db(email: str):
                         conn.execute(text("ALTER TABLE snapshot_items ADD COLUMN value_usd FLOAT NOT NULL DEFAULT 0.0"))
                         conn.execute(text("UPDATE snapshot_items SET value_usd = value_ron / 4.5 WHERE value_usd = 0.0"))
 
-                logger.info(f"Manual schema updates completed for user {email}")
+                # Add missing columns to snapshots
+                if "snapshots" in table_names:
+                    columns = [col["name"] for col in inspector.get_columns("snapshots")]
+
+                    if "total_value_eur" not in columns:
+                        logger.info("Adding total_value_eur column to snapshots")
+                        conn.execute(text("ALTER TABLE snapshots ADD COLUMN total_value_eur FLOAT NOT NULL DEFAULT 0.0"))
+                        conn.execute(text("""
+                            UPDATE snapshots SET total_value_eur = (
+                                SELECT COALESCE(SUM(value_eur), 0.0)
+                                FROM snapshot_items
+                                WHERE snapshot_items.snapshot_id = snapshots.id
+                            )
+                        """))
+
+                    if "total_value_usd" not in columns:
+                        logger.info("Adding total_value_usd column to snapshots")
+                        conn.execute(text("ALTER TABLE snapshots ADD COLUMN total_value_usd FLOAT NOT NULL DEFAULT 0.0"))
+                        conn.execute(text("""
+                            UPDATE snapshots SET total_value_usd = (
+                                SELECT COALESCE(SUM(value_usd), 0.0)
+                                FROM snapshot_items
+                                WHERE snapshot_items.snapshot_id = snapshots.id
+                            )
+                        """))
+
+                # Create transactions table if missing
+                if "transactions" not in table_names:
+                    logger.info("Creating transactions table")
+                    conn.execute(text("""
+                        CREATE TABLE transactions (
+                            id INTEGER PRIMARY KEY,
+                            holding_id INTEGER NOT NULL,
+                            date DATE NOT NULL,
+                            shares FLOAT NOT NULL,
+                            price_per_share FLOAT NOT NULL,
+                            notes TEXT,
+                            FOREIGN KEY (holding_id) REFERENCES stock_holdings (id)
+                        )
+                    """))
+
+            logger.info(f"Manual schema updates completed for user {email}")
         except Exception as schema_error:
             logger.error(f"Failed to apply manual schema updates for user {email}: {schema_error}", exc_info=True)
 
