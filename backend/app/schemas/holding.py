@@ -30,7 +30,7 @@ class StockHoldingUpdate(BaseModel):
 
 
 class StockAddShares(BaseModel):
-    shares: float = Field(..., gt=0)
+    shares: float = Field(..., description="Number of shares to add (negative to remove)")
 
 
 class ManualAddValue(BaseModel):
