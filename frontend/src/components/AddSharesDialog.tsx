@@ -11,38 +11,58 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { StockHolding } from "@/types/holdings";
+
+export interface AddSharesFormData {
+  shares: number;
+  date: string;
+  price_per_share: number;
+  notes?: string;
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stock: StockHolding | null;
-  onSubmit: (shares: number) => Promise<void>;
+  onSubmit: (data: AddSharesFormData) => Promise<void>;
+  currentPrice?: number;
 }
 
-export function AddSharesDialog({ open, onOpenChange, stock, onSubmit }: Props) {
+export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPrice }: Props) {
   const [shares, setShares] = useState("");
+  const [date, setDate] = useState("");
+  const [pricePerShare, setPricePerShare] = useState("");
+  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setShares("");
+      setDate(new Date().toISOString().split("T")[0]); // Today's date in YYYY-MM-DD
+      setPricePerShare(currentPrice?.toString() || "");
+      setNotes("");
       setError("");
     }
-  }, [open]);
+  }, [open, currentPrice]);
 
   const sharesToAdd = Number(shares) || 0;
   const newTotal = (stock?.shares ?? 0) + sharesToAdd;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (sharesToAdd <= 0) return;
+    if (sharesToAdd <= 0 || !date || Number(pricePerShare) <= 0) return;
 
     setSubmitting(true);
     setError("");
     try {
-      await onSubmit(sharesToAdd);
+      await onSubmit({
+        shares: sharesToAdd,
+        date,
+        price_per_share: Number(pricePerShare),
+        notes: notes.trim() || undefined,
+      });
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add shares");
@@ -73,6 +93,43 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit }: Props) 
               value={shares}
               onChange={(e) => setShares(e.target.value)}
               autoFocus
+              required
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="transaction-date">Date</Label>
+            <Input
+              id="transaction-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="price-per-share">Price per share</Label>
+            <Input
+              id="price-per-share"
+              type="number"
+              step="any"
+              min="0.0001"
+              placeholder="Price per share"
+              value={pricePerShare}
+              onChange={(e) => setPricePerShare(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="notes">Notes (optional)</Label>
+            <Textarea
+              id="notes"
+              placeholder="Add any notes about this transaction"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
             />
           </div>
 
@@ -88,7 +145,10 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit }: Props) 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={sharesToAdd <= 0 || submitting}>
+            <Button
+              type="submit"
+              disabled={sharesToAdd <= 0 || !date || Number(pricePerShare) <= 0 || submitting}
+            >
               {submitting && <Loader2Icon className="animate-spin" />}
               Add Shares
             </Button>

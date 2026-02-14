@@ -19,6 +19,7 @@ class StockHolding(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     labels: Mapped[list[Label]] = relationship(secondary=stock_holding_labels, lazy="selectin")
+    transactions: Mapped[list["Transaction"]] = relationship(back_populates="holding", cascade="all, delete-orphan")
 
 
 class ManualHolding(Base):

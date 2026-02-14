@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
+from app.models.transaction import Transaction
 from app.services.price import lookup_ticker, normalize_ticker
 from app.schemas.holding import (
     ManualAddValue,
@@ -15,6 +16,7 @@ from app.schemas.holding import (
     StockHoldingRead,
     StockHoldingUpdate,
 )
+from app.schemas.transaction import TransactionCreate, TransactionRead
 
 router = APIRouter(prefix="/api/v1/holdings", tags=["holdings"], dependencies=[Depends(get_current_user)])
 
@@ -97,6 +99,50 @@ def delete_stock(stock_id: int, db: Session = Depends(get_user_db)):
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
     db.delete(stock)
+    db.commit()
+
+
+# --- Stock Transactions ---
+
+
+@router.post("/stocks/{stock_id}/transactions", response_model=TransactionRead, status_code=201)
+def create_transaction(stock_id: int, body: TransactionCreate, db: Session = Depends(get_user_db)):
+    """Create a transaction record for a stock holding."""
+    stock = db.get(StockHolding, stock_id)
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock holding not found")
+
+    transaction = Transaction(
+        holding_id=stock_id,
+        date=body.date,
+        shares=body.shares,
+        price_per_share=body.price_per_share,
+        notes=body.notes,
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    return transaction
+
+
+@router.get("/stocks/{stock_id}/transactions", response_model=list[TransactionRead])
+def list_transactions(stock_id: int, db: Session = Depends(get_user_db)):
+    """List all transactions for a stock holding, ordered by date descending."""
+    stock = db.get(StockHolding, stock_id)
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock holding not found")
+
+    return db.query(Transaction).filter(Transaction.holding_id == stock_id).order_by(Transaction.date.desc()).all()
+
+
+@router.delete("/transactions/{transaction_id}", status_code=204)
+def delete_transaction(transaction_id: int, db: Session = Depends(get_user_db)):
+    """Delete a transaction record."""
+    transaction = db.get(Transaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    db.delete(transaction)
     db.commit()
 
 

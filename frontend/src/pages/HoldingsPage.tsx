@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { PencilIcon, PlusCircleIcon, PlusIcon, Trash2Icon, Loader2Icon, XIcon } from "lucide-react";
+import { PencilIcon, PlusCircleIcon, PlusIcon, Trash2Icon, Loader2Icon, XIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +15,11 @@ import {
 import { StockHoldingDialog } from "@/components/StockHoldingDialog";
 import { ManualHoldingDialog } from "@/components/ManualHoldingDialog";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
-import { AddSharesDialog } from "@/components/AddSharesDialog";
+import { AddSharesDialog, type AddSharesFormData } from "@/components/AddSharesDialog";
 import { AddValueDialog } from "@/components/AddValueDialog";
 import { LabelManager } from "@/components/LabelManager";
 import { LabelAssignPopover, LabelBadges } from "@/components/LabelAssignPopover";
+import { TransactionHistory } from "@/components/TransactionHistory";
 import {
   getStockHoldings,
   getManualHoldings,
@@ -30,6 +32,9 @@ import {
   addStockShares,
   addManualValue,
 } from "@/api/holdings";
+import { createTransaction, listTransactions } from "@/api/transactions";
+import { lookupStockPrice } from "@/api/prices";
+import type { TransactionRead } from "@/types/transaction";
 import { getAllocationGroups, getGroupMembers } from "@/api/allocation-groups";
 import type { StockHolding, ManualHolding, Currency } from "@/types/holdings";
 import type { AllocationGroup } from "@/types/allocation-groups";
@@ -54,6 +59,9 @@ export function HoldingsPage() {
   const [addSharesTarget, setAddSharesTarget] = useState<StockHolding | null>(null);
   const [addValueTarget, setAddValueTarget] = useState<ManualHolding | null>(null);
   const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
+  const [currentPrice, setCurrentPrice] = useState<number | undefined>();
+  const [expandedStocks, setExpandedStocks] = useState<Map<number, TransactionRead[]>>(new Map());
+  const [loadingTransactions, setLoadingTransactions] = useState<Set<number>>(new Set());
 
   // Extract unique labels from all holdings
   const allLabels = useMemo(() => {
@@ -153,11 +161,58 @@ export function HoldingsPage() {
     await fetchAll();
   }
 
-  async function handleAddShares(shares: number) {
+  async function handleAddShares(data: AddSharesFormData) {
     if (!addSharesTarget) return;
-    await addStockShares(addSharesTarget.id, { shares });
+    // Update the holding's total shares
+    await addStockShares(addSharesTarget.id, { shares: data.shares });
+    // Create transaction record
+    await createTransaction(addSharesTarget.id, {
+      date: data.date,
+      shares: data.shares,
+      price_per_share: data.price_per_share,
+      notes: data.notes,
+    });
     setAddSharesTarget(null);
     await fetchAll();
+  }
+
+  async function openAddSharesDialog(stock: StockHolding) {
+    setAddSharesTarget(stock);
+    setCurrentPrice(undefined);
+    // Fetch current price in the background
+    try {
+      const priceData = await lookupStockPrice(stock.ticker);
+      setCurrentPrice(priceData.price);
+    } catch {
+      // If price fetch fails, user will need to enter manually
+      setCurrentPrice(undefined);
+    }
+  }
+
+  async function toggleStockExpanded(stockId: number) {
+    if (expandedStocks.has(stockId)) {
+      // Collapse
+      const newMap = new Map(expandedStocks);
+      newMap.delete(stockId);
+      setExpandedStocks(newMap);
+    } else {
+      // Expand - fetch transactions
+      setLoadingTransactions((prev) => new Set(prev).add(stockId));
+      try {
+        const transactions = await listTransactions(stockId);
+        const newMap = new Map(expandedStocks);
+        newMap.set(stockId, transactions);
+        setExpandedStocks(newMap);
+      } catch (err) {
+        toast.error("Failed to load transactions");
+      } finally {
+        setLoadingTransactions((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(stockId);
+          return newSet;
+        });
+      }
+    }
   }
 
   async function handleAddValue(value: number) {
@@ -258,6 +313,7 @@ export function HoldingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Ticker</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Labels</TableHead>
@@ -268,11 +324,31 @@ export function HoldingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStocks.map((stock) => (
-                  <TableRow key={stock.id}>
-                    <TableCell>
-                      <Badge variant="secondary">{stock.ticker}</Badge>
-                    </TableCell>
+                {filteredStocks.map((stock) => {
+                  const isExpanded = expandedStocks.has(stock.id);
+                  const isLoading = loadingTransactions.has(stock.id);
+                  const transactions = expandedStocks.get(stock.id) || [];
+
+                  return (
+                    <>
+                      <TableRow key={stock.id}>
+                        <TableCell>
+                          <button
+                            className="flex items-center justify-center w-full hover:bg-muted/50 rounded"
+                            onClick={() => toggleStockExpanded(stock.id)}
+                          >
+                            {isLoading ? (
+                              <Loader2Icon className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : isExpanded ? (
+                              <ChevronDownIcon className="h-4 w-4" />
+                            ) : (
+                              <ChevronRightIcon className="h-4 w-4" />
+                            )}
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{stock.ticker}</Badge>
+                        </TableCell>
                     <TableCell>{stock.display_name ?? "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -324,7 +400,7 @@ export function HoldingsPage() {
                         <Button
                           variant="ghost"
                           size="icon-xs"
-                          onClick={() => setAddSharesTarget(stock)}
+                          onClick={() => openAddSharesDialog(stock)}
                           title="Add shares"
                         >
                           <PlusCircleIcon />
@@ -355,7 +431,23 @@ export function HoldingsPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+
+                  {isExpanded && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="bg-muted/30 p-0">
+                        <div className="px-4 py-3">
+                          <h4 className="text-sm font-medium mb-3">Transaction History</h4>
+                          <TransactionHistory
+                            transactions={transactions}
+                            onTransactionDeleted={() => toggleStockExpanded(stock.id)}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              );
+            })}
               </TableBody>
             </Table>
           </div>
@@ -518,6 +610,7 @@ export function HoldingsPage() {
         }}
         stock={addSharesTarget}
         onSubmit={handleAddShares}
+        currentPrice={currentPrice}
       />
       <AddValueDialog
         open={!!addValueTarget}
