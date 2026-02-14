@@ -27,16 +27,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { listSnapshots, getSnapshot, createSnapshot } from "@/api/snapshots";
-import { getPortfolio } from "@/api/portfolio";
 import type { SnapshotSummary, SnapshotRead, LabelInSnapshot } from "@/types/snapshot";
 
 type Currency = "RON" | "EUR" | "USD";
 
 export function HistoryPage() {
-  const { data: portfolio } = useQuery({
-    queryKey: ["portfolio"],
-    queryFn: getPortfolio,
-  });
   const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([]);
   const [expandedSnapshots, setExpandedSnapshots] = useState<Map<number, SnapshotRead>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -103,13 +98,11 @@ export function HistoryPage() {
     }
   };
 
-  const convertFromRon = (valueRon: number): number => {
-    // Fallback for snapshot totals (until we migrate Snapshot model)
-    if (displayCurrency === "RON") return valueRon;
-    const fxRates = portfolio?.fx_rates || { eur_ron: 1, usd_ron: 1 };
-    if (displayCurrency === "EUR") return valueRon / fxRates.eur_ron;
-    if (displayCurrency === "USD") return valueRon / fxRates.usd_ron;
-    return valueRon;
+  const getSnapshotTotal = (snapshot: { total_value_ron: number; total_value_eur: number; total_value_usd: number }): number => {
+    // Use pre-stored currency values from the snapshot (captured at snapshot time)
+    if (displayCurrency === "EUR") return snapshot.total_value_eur;
+    if (displayCurrency === "USD") return snapshot.total_value_usd;
+    return snapshot.total_value_ron;
   };
 
   const convertValue = (item: { value_ron: number; value_eur: number; value_usd: number }): number => {
@@ -219,7 +212,7 @@ export function HistoryPage() {
                       </TableCell>
                       <TableCell>{fmtDate(s.taken_at)}</TableCell>
                       <TableCell className="text-right">
-                        {fmt(convertFromRon(s.total_value_ron))}
+                        {fmt(getSnapshotTotal(s))}
                       </TableCell>
                       <TableCell className="text-right">{s.item_count}</TableCell>
                     </TableRow>

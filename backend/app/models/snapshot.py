@@ -12,6 +12,8 @@ class Snapshot(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     taken_at: Mapped[datetime] = mapped_column(server_default=func.now())
     total_value_ron: Mapped[float] = mapped_column(Float, nullable=False)
+    total_value_eur: Mapped[float] = mapped_column(Float, nullable=False)
+    total_value_usd: Mapped[float] = mapped_column(Float, nullable=False)
     exported_to_sheets: Mapped[bool] = mapped_column(Boolean, default=False)
     sheets_url: Mapped[str | None] = mapped_column(Text)
 

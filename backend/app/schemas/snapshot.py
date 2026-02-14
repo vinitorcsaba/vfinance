@@ -60,6 +60,8 @@ class SnapshotRead(BaseModel):
     id: int
     taken_at: datetime
     total_value_ron: float
+    total_value_eur: float
+    total_value_usd: float
     exported_to_sheets: bool
     sheets_url: str | None
     items: list[SnapshotItemRead]
@@ -73,6 +75,8 @@ class SnapshotSummary(BaseModel):
     id: int
     taken_at: datetime
     total_value_ron: float
+    total_value_eur: float
+    total_value_usd: float
     exported_to_sheets: bool
     sheets_url: str | None
     item_count: int

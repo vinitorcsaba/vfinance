@@ -41,8 +41,15 @@ def create_snapshot(db: Session) -> Snapshot:
     portfolio = build_portfolio(db)
     fx_rates = portfolio["fx_rates"]
 
+    # Calculate grand totals in all currencies
+    grand_total_ron = portfolio["grand_total_ron"]
+    grand_total_eur = round(grand_total_ron / fx_rates["EUR"], 2)
+    grand_total_usd = round(grand_total_ron / fx_rates["USD"], 2)
+
     snapshot = Snapshot(
-        total_value_ron=portfolio["grand_total_ron"],
+        total_value_ron=grand_total_ron,
+        total_value_eur=grand_total_eur,
+        total_value_usd=grand_total_usd,
     )
 
     for holding in portfolio["holdings"]:

@@ -7,6 +7,8 @@ export interface SnapshotSummary {
   id: number;
   taken_at: string;
   total_value_ron: number;
+  total_value_eur: number;
+  total_value_usd: number;
   exported_to_sheets: boolean;
   sheets_url: string | null;
   item_count: number;
@@ -31,6 +33,8 @@ export interface SnapshotRead {
   id: number;
   taken_at: string;
   total_value_ron: number;
+  total_value_eur: number;
+  total_value_usd: number;
   exported_to_sheets: boolean;
   sheets_url: string | null;
   items: SnapshotItemRead[];
