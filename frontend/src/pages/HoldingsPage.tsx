@@ -164,6 +164,7 @@ export function HoldingsPage() {
   async function handleAddShares(data: AddSharesFormData) {
     if (!addSharesTarget) return;
     const stockId = addSharesTarget.id;
+    const wasExpanded = expandedStocks.has(stockId);
 
     // Update the holding's total shares
     await addStockShares(stockId, { shares: data.shares });
@@ -174,20 +175,23 @@ export function HoldingsPage() {
       price_per_share: data.price_per_share,
       notes: data.notes,
     });
-    setAddSharesTarget(null);
-    await fetchAll();
 
-    // Refresh transactions if this stock's row is currently expanded
-    if (expandedStocks.has(stockId)) {
+    // Refresh transactions immediately if this stock's row is currently expanded
+    if (wasExpanded) {
       try {
         const transactions = await listTransactions(stockId);
-        const newMap = new Map(expandedStocks);
-        newMap.set(stockId, transactions);
-        setExpandedStocks(newMap);
+        setExpandedStocks((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(stockId, transactions);
+          return newMap;
+        });
       } catch (err) {
         toast.error("Failed to refresh transactions");
       }
     }
+
+    setAddSharesTarget(null);
+    await fetchAll();
   }
 
   async function openAddSharesDialog(stock: StockHolding) {
