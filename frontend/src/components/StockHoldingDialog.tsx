@@ -84,10 +84,11 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
     try {
       const result = await lookupTicker(tickerValue);
       setTickerInfo(result);
-      if (result.currency && !currency) {
+      // Always update currency and display name when looking up a new ticker
+      if (result.currency) {
         setCurrency(result.currency as Currency);
       }
-      if (result.name && !displayName) {
+      if (result.name) {
         setDisplayName(result.name);
       }
     } catch (err) {
@@ -95,7 +96,7 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
     } finally {
       setValidating(false);
     }
-  }, [currency, displayName]);
+  }, []);
 
   async function handleSearch() {
     const query = ticker.trim();
