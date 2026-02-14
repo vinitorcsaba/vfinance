@@ -25,7 +25,7 @@ export async function listTransactions(holdingId: number): Promise<TransactionRe
 }
 
 export async function deleteTransaction(transactionId: number): Promise<void> {
-  const res = await fetch(`${BASE}/transactions/${transactionId}`, {
+  const res = await fetch(`${BASE}/holdings/transactions/${transactionId}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to delete transaction");
