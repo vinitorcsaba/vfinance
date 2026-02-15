@@ -1,6 +1,6 @@
 # VFinance
 
-A modern, mobile-responsive portfolio tracker web application for managing investments in BET Index (Bucharest Stock Exchange) and international stocks.
+A modern, mobile-responsive portfolio tracker web application for managing investments in BET Index (Bucharest Stock Exchange) and international stocks!
 
 ## Features
 
