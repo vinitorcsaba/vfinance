@@ -273,12 +273,12 @@ export function DashboardPage() {
         <TableCell className="text-right">
           {h.shares != null ? formatNumber(h.shares) : "—"}
         </TableCell>
-        <TableCell className="hidden sm:table-cell text-right">
+        <TableCell className="text-right">
           {h.price != null
             ? `${formatNumber(h.price)} ${h.currency}`
             : "—"}
         </TableCell>
-        <TableCell className="hidden md:table-cell text-right">
+        <TableCell className="text-right">
           {formatNumber(h.value)} {h.currency}
         </TableCell>
         <TableCell className="text-right font-medium">
@@ -336,15 +336,15 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Summary cards */}
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card>
-              <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-1 px-3 pt-3 sm:px-6 sm:pt-6 sm:pb-2">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Grand Total ({dc})
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
-                <p className="text-xl sm:text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
+              <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
+                <p className="text-lg sm:text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
               </CardContent>
             </Card>
 
@@ -372,21 +372,18 @@ export function DashboardPage() {
 
               return (
                 <Card key={ct.currency}>
-                  <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                  <CardHeader className="pb-1 px-3 pt-3 sm:px-6 sm:pt-6 sm:pb-2">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                       {ct.currency} Total
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
-                    <p className="text-lg sm:text-xl font-semibold">
+                  <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
+                    <p className="text-base sm:text-xl font-semibold">
                       {formatNumber(ct.total)} {ct.currency}
                     </p>
                     {ct.currency !== dc && conversionRate && (
-                      <p className="text-xs sm:text-sm text-muted-foreground">
+                      <p className="text-[10px] leading-tight sm:text-sm text-muted-foreground mt-0.5">
                         = {formatNumber(ctDisplay)} {dc}
-                        <span className="ml-1">
-                          (rate: {conversionRate.toFixed(4)})
-                        </span>
                       </p>
                     )}
                   </CardContent>
@@ -545,14 +542,15 @@ export function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="rounded-md border">
+              {/* Desktop: Table */}
+              <div className="hidden md:block rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead className="text-right">Shares</TableHead>
-                      <TableHead className="hidden sm:table-cell text-right">Price</TableHead>
-                      <TableHead className="hidden md:table-cell text-right">Value</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
                       <TableHead className="text-right">Value ({dc})</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -564,11 +562,9 @@ export function DashboardPage() {
                         return (
                           <Fragment key={`group-${currency}`}>
                             <TableRow className="bg-muted/50">
-                              <TableCell colSpan={2} className="font-semibold text-xs uppercase tracking-wide">
+                              <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
                                 {currency}
                               </TableCell>
-                              <TableCell className="hidden sm:table-cell"></TableCell>
-                              <TableCell className="hidden md:table-cell"></TableCell>
                               <TableCell className="text-right font-semibold text-xs">
                                 {formatNumber(subtotalDisplay)} {dc}
                               </TableCell>
@@ -582,6 +578,105 @@ export function DashboardPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+
+              {/* Mobile: Card layout */}
+              <div className="md:hidden p-4 space-y-3">
+                {groupByCurrency ? (
+                  Array.from(groupedHoldings.entries()).map(([currency, items]) => {
+                    const subtotalRon = items.reduce((sum, h) => sum + h.value_ron, 0);
+                    const subtotalDisplay = convertFromRon(subtotalRon, dc, fx_rates);
+                    return (
+                      <div key={`group-${currency}`} className="space-y-2">
+                        {/* Currency group header */}
+                        <div className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-md">
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {currency}
+                          </span>
+                          <span className="text-xs font-semibold">
+                            {formatNumber(subtotalDisplay)} {dc}
+                          </span>
+                        </div>
+                        {/* Holdings in this currency */}
+                        {items.map((h) => {
+                          const displayValue = convertFromRon(h.value_ron, dc, fx_rates);
+                          return (
+                            <div key={`${h.type}-${h.id}`} className="border rounded-md p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm">{h.name}</div>
+                                  {h.ticker && (
+                                    <Badge variant="secondary" className="mt-1 text-xs">
+                                      {h.ticker}
+                                    </Badge>
+                                  )}
+                                  <LabelBadges labels={h.labels ?? []} />
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-sm font-semibold">
+                                    {formatNumber(displayValue)} {dc}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
+                                {h.shares != null && (
+                                  <div>
+                                    <span className="text-muted-foreground">Shares:</span>{" "}
+                                    <span className="font-medium">{formatNumber(h.shares)}</span>
+                                  </div>
+                                )}
+                                {h.price != null && (
+                                  <div className="text-right">
+                                    <span className="text-muted-foreground">Price:</span>{" "}
+                                    <span className="font-medium">{formatNumber(h.price)} {h.currency}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })
+                ) : (
+                  filteredHoldings.map((h) => {
+                    const displayValue = convertFromRon(h.value_ron, dc, fx_rates);
+                    return (
+                      <div key={`${h.type}-${h.id}`} className="border rounded-md p-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{h.name}</div>
+                            {h.ticker && (
+                              <Badge variant="secondary" className="mt-1 text-xs">
+                                {h.ticker}
+                              </Badge>
+                            )}
+                            <LabelBadges labels={h.labels ?? []} />
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-semibold">
+                              {formatNumber(displayValue)} {dc}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
+                          {h.shares != null && (
+                            <div>
+                              <span className="text-muted-foreground">Shares:</span>{" "}
+                              <span className="font-medium">{formatNumber(h.shares)}</span>
+                            </div>
+                          )}
+                          {h.price != null && (
+                            <div className="text-right">
+                              <span className="text-muted-foreground">Price:</span>{" "}
+                              <span className="font-medium">{formatNumber(h.price)} {h.currency}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
