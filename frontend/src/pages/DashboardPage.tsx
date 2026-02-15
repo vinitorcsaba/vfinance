@@ -338,13 +338,13 @@ export function DashboardPage() {
           {/* Summary cards */}
           <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card>
-              <CardHeader className="pb-1 px-3 pt-3 sm:px-6 sm:pt-6 sm:pb-2">
-                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-0.5 px-2.5 pt-2.5 sm:px-6 sm:pt-6 sm:pb-2">
+                <CardTitle className="text-[10px] leading-tight sm:text-sm font-medium text-muted-foreground">
                   Grand Total ({dc})
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
-                <p className="text-lg sm:text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
+              <CardContent className="px-2.5 pb-2.5 sm:px-6 sm:pb-6">
+                <p className="text-base leading-tight sm:text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
               </CardContent>
             </Card>
 
@@ -372,17 +372,17 @@ export function DashboardPage() {
 
               return (
                 <Card key={ct.currency}>
-                  <CardHeader className="pb-1 px-3 pt-3 sm:px-6 sm:pt-6 sm:pb-2">
-                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+                  <CardHeader className="pb-0.5 px-2.5 pt-2.5 sm:px-6 sm:pt-6 sm:pb-2">
+                    <CardTitle className="text-[10px] leading-tight sm:text-sm font-medium text-muted-foreground">
                       {ct.currency} Total
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
-                    <p className="text-base sm:text-xl font-semibold">
+                  <CardContent className="px-2.5 pb-2.5 sm:px-6 sm:pb-6">
+                    <p className="text-sm leading-tight sm:text-xl font-semibold">
                       {formatNumber(ct.total)} {ct.currency}
                     </p>
                     {ct.currency !== dc && conversionRate && (
-                      <p className="text-[10px] leading-tight sm:text-sm text-muted-foreground mt-0.5">
+                      <p className="text-[9px] leading-tight sm:text-sm text-muted-foreground mt-0.5">
                         = {formatNumber(ctDisplay)} {dc}
                       </p>
                     )}
