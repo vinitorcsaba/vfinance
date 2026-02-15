@@ -113,51 +113,97 @@ export function AllocationAnalysisCard({
         </div>
       )}
 
-      {/* Analysis table */}
+      {/* Analysis table - Desktop */}
       {!isEmpty && (
-        <div className="space-y-1">
-          {/* Header row */}
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_2fr] gap-2 text-xs font-medium text-muted-foreground pb-2 border-b">
-            <div>Name</div>
-            <div className="text-right">Current Value</div>
-            <div className="text-right">Current %</div>
-            <div className="text-right">Target %</div>
-            <div className="text-right">Difference</div>
-            <div className="text-right">Suggestion</div>
+        <>
+          <div className="hidden md:block space-y-1">
+            {/* Header row */}
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_2fr] gap-2 text-xs font-medium text-muted-foreground pb-2 border-b">
+              <div>Name</div>
+              <div className="text-right">Current Value</div>
+              <div className="text-right">Current %</div>
+              <div className="text-right">Target %</div>
+              <div className="text-right">Difference</div>
+              <div className="text-right">Suggestion</div>
+            </div>
+
+            {/* Data rows */}
+            {analysis.members.map((member) => {
+              const displayName = member.ticker || member.name;
+              const diff = member.difference;
+              const diffColor = diff > 0.01 ? "text-green-600" : diff < -0.01 ? "text-red-600" : "text-muted-foreground";
+              const suggestion =
+                diff > 0.01
+                  ? `Add ${Math.abs(diff).toFixed(2)} ${member.currency}`
+                  : diff < -0.01
+                  ? `Reduce by ${Math.abs(diff).toFixed(2)} ${member.currency}`
+                  : "On target";
+
+              return (
+                <div
+                  key={`${member.holding_type}-${member.holding_id}`}
+                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_2fr] gap-2 text-sm py-1 hover:bg-muted/50"
+                >
+                  <div className="font-medium">{displayName}</div>
+                  <div className="text-right">
+                    {member.current_value.toFixed(2)} {member.currency}
+                  </div>
+                  <div className="text-right">{member.current_percentage.toFixed(1)}%</div>
+                  <div className="text-right">{member.target_percentage.toFixed(1)}%</div>
+                  <div className={`text-right font-medium ${diffColor}`}>
+                    {diff > 0 ? "+" : ""}
+                    {diff.toFixed(2)} {member.currency}
+                  </div>
+                  <div className={`text-right ${diffColor}`}>{suggestion}</div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Data rows */}
-          {analysis.members.map((member) => {
-            const displayName = member.ticker || member.name;
-            const diff = member.difference;
-            const diffColor = diff > 0.01 ? "text-green-600" : diff < -0.01 ? "text-red-600" : "text-muted-foreground";
-            const suggestion =
-              diff > 0.01
-                ? `Add ${Math.abs(diff).toFixed(2)} ${member.currency}`
-                : diff < -0.01
-                ? `Reduce by ${Math.abs(diff).toFixed(2)} ${member.currency}`
-                : "On target";
+          {/* Mobile card layout */}
+          <div className="md:hidden space-y-2">
+            {analysis.members.map((member) => {
+              const displayName = member.ticker || member.name;
+              const diff = member.difference;
+              const diffColor = diff > 0.01 ? "text-green-600" : diff < -0.01 ? "text-red-600" : "text-muted-foreground";
+              const suggestion =
+                diff > 0.01
+                  ? `Add ${Math.abs(diff).toFixed(2)} ${member.currency}`
+                  : diff < -0.01
+                  ? `Reduce by ${Math.abs(diff).toFixed(2)} ${member.currency}`
+                  : "On target";
 
-            return (
-              <div
-                key={`${member.holding_type}-${member.holding_id}`}
-                className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_2fr] gap-2 text-sm py-1 hover:bg-muted/50"
-              >
-                <div className="font-medium">{displayName}</div>
-                <div className="text-right">
-                  {member.current_value.toFixed(2)} {member.currency}
+              return (
+                <div
+                  key={`${member.holding_type}-${member.holding_id}`}
+                  className="border rounded-md p-3 space-y-2"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="font-medium">{displayName}</div>
+                    <div className="text-sm text-right">
+                      {member.current_value.toFixed(2)} {member.currency}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Current:</span>{" "}
+                      <span className="font-medium">{member.current_percentage.toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Target:</span>{" "}
+                      <span className="font-medium">{member.target_percentage.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <div className={`text-sm font-medium ${diffColor}`}>
+                      {suggestion}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">{member.current_percentage.toFixed(1)}%</div>
-                <div className="text-right">{member.target_percentage.toFixed(1)}%</div>
-                <div className={`text-right font-medium ${diffColor}`}>
-                  {diff > 0 ? "+" : ""}
-                  {diff.toFixed(2)} {member.currency}
-                </div>
-                <div className={`text-right ${diffColor}`}>{suggestion}</div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

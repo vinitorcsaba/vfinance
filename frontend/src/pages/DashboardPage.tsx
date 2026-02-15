@@ -500,11 +500,9 @@ export function DashboardPage() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      outerRadius={200}
-                      label={({ name, percent }: { name?: string; percent?: number }) =>
-                        `${name ?? ""} (${((percent ?? 0) * 100).toFixed(1)}%)`
-                      }
-                      labelLine
+                      outerRadius="70%"
+                      label={false}
+                      labelLine={false}
                     >
                       {pieData.map((_, i) => (
                         <Cell key={i} fill={pieColors[i]} />
