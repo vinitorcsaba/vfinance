@@ -336,15 +336,15 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Summary cards */}
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card>
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Grand Total ({dc})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
+              <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+                <p className="text-xl sm:text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
               </CardContent>
             </Card>
 
@@ -372,17 +372,17 @@ export function DashboardPage() {
 
               return (
                 <Card key={ct.currency}>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
                       {ct.currency} Total
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-semibold">
+                  <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+                    <p className="text-lg sm:text-xl font-semibold">
                       {formatNumber(ct.total)} {ct.currency}
                     </p>
                     {ct.currency !== dc && conversionRate && (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         = {formatNumber(ctDisplay)} {dc}
                         <span className="ml-1">
                           (rate: {conversionRate.toFixed(4)})
