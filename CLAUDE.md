@@ -88,6 +88,8 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **UI stack**: Shadcn/ui components + Tailwind CSS v4 (uses `@tailwindcss/vite` plugin, not PostCSS). Path alias `@/*` → `src/*` configured in both `vite.config.ts` and `tsconfig.json`.
 
+**Mobile responsiveness**: Comprehensive mobile-first responsive design implemented across all pages. Header uses icon-only buttons on mobile with scrollable tabs. Dashboard has responsive summary cards (1/2/4 column grid), responsive pie chart height (300/400/600px), and hidden table columns on small screens. Holdings and History pages use card layout on mobile (<768px) and table layout on desktop. Dialogs have max-height and overflow for scrolling. TransactionHistory component optimized for mobile with compact cards. Breakpoints: `sm` (640px), `md` (768px), `lg` (1024px). See `mobile-responsiveness-plan.md` for implementation details.
+
 ## Conventions
 
 - Backend imports use `backend.app.*` when running from project root, but `app.*` within backend code (see `database.py` importing `app.config`)
