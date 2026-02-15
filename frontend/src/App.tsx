@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { CloudUpload, Loader2, LogOut } from "lucide-react"
+import { CloudUpload, Loader2, LogOut, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DashboardPage } from "@/pages/DashboardPage"
 import { HoldingsPage } from "@/pages/HoldingsPage"
 import { SnapshotsPage } from "@/pages/SnapshotsPage"
@@ -17,6 +18,8 @@ function AppContent() {
   const { user, loading, logout } = useAuth()
   const [backupConfigured, setBackupConfigured] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState("dashboard")
 
   useEffect(() => {
     if (!user) return
@@ -53,7 +56,18 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b px-4 py-3 md:px-6 md:py-4">
-        <h1 className="text-xl font-bold md:text-2xl">VFinance</h1>
+        <div className="flex items-center gap-3">
+          {/* Mobile menu button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-bold md:text-2xl">VFinance</h1>
+        </div>
         <div className="flex items-center gap-2 md:gap-3">
           {backupConfigured && (
             <Button
@@ -91,8 +105,9 @@ function AppContent() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 md:p-6">
-        <Tabs defaultValue="dashboard">
-          <TabsList className="w-full justify-start overflow-x-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          {/* Desktop tabs */}
+          <TabsList className="hidden md:inline-flex">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="holdings">Holdings</TabsTrigger>
             <TabsTrigger value="allocations">Allocations</TabsTrigger>
@@ -116,6 +131,83 @@ function AppContent() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Mobile navigation menu */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left">
+          <SheetHeader>
+            <SheetTitle>VFinance</SheetTitle>
+          </SheetHeader>
+          <nav className="mt-6 flex flex-col gap-2">
+            <button
+              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
+                activeTab === "dashboard"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              }`}
+              onClick={() => {
+                setActiveTab("dashboard")
+                setMobileMenuOpen(false)
+              }}
+            >
+              Dashboard
+            </button>
+            <button
+              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
+                activeTab === "holdings"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              }`}
+              onClick={() => {
+                setActiveTab("holdings")
+                setMobileMenuOpen(false)
+              }}
+            >
+              Holdings
+            </button>
+            <button
+              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
+                activeTab === "allocations"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              }`}
+              onClick={() => {
+                setActiveTab("allocations")
+                setMobileMenuOpen(false)
+              }}
+            >
+              Allocations
+            </button>
+            <button
+              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
+                activeTab === "history"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              }`}
+              onClick={() => {
+                setActiveTab("history")
+                setMobileMenuOpen(false)
+              }}
+            >
+              History
+            </button>
+            <button
+              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
+                activeTab === "snapshots"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              }`}
+              onClick={() => {
+                setActiveTab("snapshots")
+                setMobileMenuOpen(false)
+              }}
+            >
+              Snapshots
+            </button>
+          </nav>
+        </SheetContent>
+      </Sheet>
+
       <Toaster />
     </div>
   )
