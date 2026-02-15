@@ -135,7 +135,7 @@ export function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Portfolio History</h2>
         <div className="flex items-center gap-3">
           <Select value={displayCurrency} onValueChange={(v: Currency) => setDisplayCurrency(v)}>
@@ -177,8 +177,10 @@ export function HistoryPage() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-md border">
-          <Table>
+        <>
+          {/* Desktop: Table */}
+          <div className="hidden sm:block rounded-md border">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]"></TableHead>
@@ -285,6 +287,97 @@ export function HistoryPage() {
             </TableBody>
           </Table>
         </div>
+
+          {/* Mobile: Card layout */}
+          <div className="sm:hidden space-y-3">
+            {snapshots.map((s) => {
+              const isExpanded = expandedSnapshots.has(s.id);
+              const isLoading = loadingDetails.has(s.id);
+              const details = expandedSnapshots.get(s.id);
+
+              return (
+                <div key={s.id} className="rounded-lg border overflow-hidden">
+                  {/* Snapshot summary */}
+                  <button
+                    className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                    onClick={() => toggleExpanded(s.id)}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {isLoading ? (
+                        <Loader2Icon className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                      ) : isExpanded ? (
+                        <ChevronDownIcon className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-medium">{fmtDate(s.taken_at)}</p>
+                        <p className="text-xs text-muted-foreground">{s.item_count} items</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold">{fmt(getSnapshotTotal(s))}</p>
+                      <p className="text-xs text-muted-foreground">{displayCurrency}</p>
+                    </div>
+                  </button>
+
+                  {/* Expanded snapshot items */}
+                  {isExpanded && details && (
+                    <div className="border-t bg-muted/30 p-3 space-y-2">
+                      {details.items.map((item) => (
+                        <div key={item.id} className="bg-background rounded-md p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{item.name}</p>
+                              {item.ticker && (
+                                <p className="text-xs text-muted-foreground">{item.ticker}</p>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-semibold">{fmt(convertValue(item))}</p>
+                              <p className="text-xs text-muted-foreground">{displayCurrency}</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {item.shares !== null && (
+                              <div>
+                                <span className="text-muted-foreground">Shares:</span>
+                                <span className="ml-1">{fmt(item.shares)}</span>
+                              </div>
+                            )}
+                            {item.price !== null && (
+                              <div>
+                                <span className="text-muted-foreground">Price:</span>
+                                <span className="ml-1">{fmt(item.price)} {item.currency}</span>
+                              </div>
+                            )}
+                          </div>
+                          {item.labels.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {item.labels.map((label: LabelInSnapshot) => (
+                                <Badge
+                                  key={label.name}
+                                  variant="outline"
+                                  style={{
+                                    borderColor: label.color || undefined,
+                                    color: label.color || undefined,
+                                  }}
+                                  className="text-xs"
+                                >
+                                  {label.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

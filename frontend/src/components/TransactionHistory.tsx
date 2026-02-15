@@ -70,7 +70,8 @@ export function TransactionHistory({ transactions, onTransactionDeleted }: Props
 
   return (
     <>
-      <Table>
+      {/* Desktop: Table */}
+      <Table className="hidden sm:table">
         <TableHeader>
           <TableRow>
             <TableHead>Date</TableHead>
@@ -103,6 +104,38 @@ export function TransactionHistory({ transactions, onTransactionDeleted }: Props
           ))}
         </TableBody>
       </Table>
+
+      {/* Mobile: Card layout */}
+      <div className="sm:hidden space-y-2">
+        {transactions.map((tx) => (
+          <div key={tx.id} className="flex items-start justify-between gap-3 p-3 rounded-md border bg-background">
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-medium">{fmtDate(tx.date)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {fmt(tx.shares)} shares
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <div>{fmt(tx.price_per_share)} per share</div>
+                <div className="font-medium text-foreground">
+                  Total: {fmt(tx.shares * tx.price_per_share)}
+                </div>
+                {tx.notes && <div className="italic">"{tx.notes}"</div>}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setDeleteTarget(tx)}
+              title="Delete transaction"
+              className="shrink-0"
+            >
+              <Trash2Icon className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>

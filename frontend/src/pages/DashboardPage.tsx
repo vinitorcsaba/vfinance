@@ -273,12 +273,12 @@ export function DashboardPage() {
         <TableCell className="text-right">
           {h.shares != null ? formatNumber(h.shares) : "—"}
         </TableCell>
-        <TableCell className="text-right">
+        <TableCell className="hidden sm:table-cell text-right">
           {h.price != null
             ? `${formatNumber(h.price)} ${h.currency}`
             : "—"}
         </TableCell>
-        <TableCell className="text-right">
+        <TableCell className="hidden md:table-cell text-right">
           {formatNumber(h.value)} {h.currency}
         </TableCell>
         <TableCell className="text-right font-medium">
@@ -336,7 +336,7 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Summary cards */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -491,7 +491,7 @@ export function DashboardPage() {
                   </>
                 )}
               </div>
-              <div className="h-[600px]">
+              <div className="h-[300px] sm:h-[400px] lg:h-[600px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -553,8 +553,8 @@ export function DashboardPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead className="text-right">Shares</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead className="hidden sm:table-cell text-right">Price</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">Value</TableHead>
                       <TableHead className="text-right">Value ({dc})</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -566,9 +566,11 @@ export function DashboardPage() {
                         return (
                           <Fragment key={`group-${currency}`}>
                             <TableRow className="bg-muted/50">
-                              <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
+                              <TableCell colSpan={2} className="font-semibold text-xs uppercase tracking-wide">
                                 {currency}
                               </TableCell>
+                              <TableCell className="hidden sm:table-cell"></TableCell>
+                              <TableCell className="hidden md:table-cell"></TableCell>
                               <TableCell className="text-right font-semibold text-xs">
                                 {formatNumber(subtotalDisplay)} {dc}
                               </TableCell>

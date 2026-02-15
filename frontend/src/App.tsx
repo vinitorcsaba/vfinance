@@ -52,9 +52,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b px-6 py-4">
-        <h1 className="text-2xl font-bold">VFinance</h1>
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between border-b px-4 py-3 md:px-6 md:py-4">
+        <h1 className="text-xl font-bold md:text-2xl">VFinance</h1>
+        <div className="flex items-center gap-2 md:gap-3">
           {backupConfigured && (
             <Button
               variant="outline"
@@ -63,11 +63,11 @@ function AppContent() {
               onClick={handleUpload}
             >
               {uploading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
               ) : (
-                <CloudUpload className="mr-2 h-4 w-4" />
+                <CloudUpload className="h-4 w-4 sm:mr-2" />
               )}
-              Save to Cloud
+              <span className="hidden sm:inline">Save to Cloud</span>
             </Button>
           )}
           <div className="flex items-center gap-2">
@@ -84,15 +84,15 @@ function AppContent() {
               </div>
             )}
             <Button variant="ghost" size="sm" onClick={logout}>
-              <LogOut className="mr-1 h-4 w-4" />
-              Logout
+              <LogOut className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl p-6">
+      <main className="mx-auto max-w-7xl p-4 md:p-6">
         <Tabs defaultValue="dashboard">
-          <TabsList>
+          <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="holdings">Holdings</TabsTrigger>
             <TabsTrigger value="allocations">Allocations</TabsTrigger>

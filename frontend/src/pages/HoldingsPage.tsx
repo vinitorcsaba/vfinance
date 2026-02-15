@@ -327,8 +327,10 @@ export function HoldingsPage() {
               : "No stock holdings match the selected labels."}
           </p>
         ) : (
-          <div className="rounded-md border">
-            <Table>
+          <>
+            {/* Desktop: Table */}
+            <div className="hidden md:block rounded-md border">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]"></TableHead>
@@ -469,6 +471,136 @@ export function HoldingsPage() {
               </TableBody>
             </Table>
           </div>
+
+            {/* Mobile: Card layout */}
+            <div className="md:hidden space-y-3">
+              {filteredStocks.map((stock) => {
+                const isExpanded = expandedStocks.has(stock.id);
+                const isLoading = loadingTransactions.has(stock.id);
+                const transactions = expandedStocks.get(stock.id) || [];
+                const groupKey = `stock-${stock.id}`;
+                const group = groupMap.get(groupKey);
+
+                return (
+                  <div key={stock.id} className="rounded-lg border p-4 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="secondary">{stock.ticker}</Badge>
+                          {stock.currency && <Badge variant="outline" className="text-xs">{stock.currency}</Badge>}
+                        </div>
+                        <p className="text-sm font-medium truncate">{stock.display_name ?? "—"}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => openAddSharesDialog(stock)}
+                          title="Add shares"
+                        >
+                          <PlusCircleIcon />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => {
+                            setEditingStock(stock);
+                            setStockDialogOpen(true);
+                          }}
+                        >
+                          <PencilIcon />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "stock",
+                              id: stock.id,
+                              name: stock.display_name ?? stock.ticker,
+                            })
+                          }
+                        >
+                          <Trash2Icon className="text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Shares:</span>
+                        <span className="ml-2 font-medium">{stock.shares}</span>
+                      </div>
+                      {group && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Group:</span>
+                          <Badge
+                            variant="secondary"
+                            className="text-xs"
+                            style={
+                              group.color
+                                ? {
+                                    backgroundColor: group.color + "20",
+                                    borderColor: group.color,
+                                    color: group.color,
+                                  }
+                                : {}
+                            }
+                          >
+                            {group.color && (
+                              <span
+                                className="size-2 rounded-full mr-1"
+                                style={{ backgroundColor: group.color }}
+                              />
+                            )}
+                            {group.name}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Labels */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <LabelBadges labels={stock.labels ?? []} />
+                      <LabelAssignPopover
+                        holdingType="stock"
+                        holdingId={stock.id}
+                        currentLabels={stock.labels ?? []}
+                        onAssigned={fetchAll}
+                      />
+                    </div>
+
+                    {/* Expand transactions */}
+                    <button
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full py-2 border-t -mb-3 -mx-4 px-4"
+                      onClick={() => toggleStockExpanded(stock.id)}
+                    >
+                      {isLoading ? (
+                        <Loader2Icon className="h-4 w-4 animate-spin" />
+                      ) : isExpanded ? (
+                        <ChevronDownIcon className="h-4 w-4" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4" />
+                      )}
+                      <span>Transaction History</span>
+                    </button>
+
+                    {/* Expanded transaction history */}
+                    {isExpanded && (
+                      <div className="border-t pt-3 -mx-4 px-4 -mb-3 pb-3 bg-muted/30">
+                        <TransactionHistory
+                          transactions={transactions}
+                          onTransactionDeleted={() => toggleStockExpanded(stock.id)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 
@@ -494,8 +626,10 @@ export function HoldingsPage() {
               : "No manual holdings match the selected labels."}
           </p>
         ) : (
-          <div className="rounded-md border">
-            <Table>
+          <>
+            {/* Desktop: Table */}
+            <div className="hidden md:block rounded-md border">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -597,6 +731,104 @@ export function HoldingsPage() {
               </TableBody>
             </Table>
           </div>
+
+            {/* Mobile: Card layout */}
+            <div className="md:hidden space-y-3">
+              {filteredManuals.map((manual) => {
+                const groupKey = `manual-${manual.id}`;
+                const group = groupMap.get(groupKey);
+
+                return (
+                  <div key={manual.id} className="rounded-lg border p-4 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium mb-1">{manual.name}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-semibold">
+                            {manual.value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <Badge variant="outline">{manual.currency}</Badge>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => setAddValueTarget(manual)}
+                          title="Add value"
+                        >
+                          <PlusCircleIcon />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => {
+                            setEditingManual(manual);
+                            setManualDialogOpen(true);
+                          }}
+                        >
+                          <PencilIcon />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: "manual",
+                              id: manual.id,
+                              name: manual.name,
+                            })
+                          }
+                        >
+                          <Trash2Icon className="text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Group badge */}
+                    {group && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Group:</span>
+                        <Badge
+                          variant="secondary"
+                          className="text-xs"
+                          style={
+                            group.color
+                              ? {
+                                  backgroundColor: group.color + "20",
+                                  borderColor: group.color,
+                                  color: group.color,
+                                }
+                              : {}
+                          }
+                        >
+                          {group.color && (
+                            <span
+                              className="size-2 rounded-full mr-1"
+                              style={{ backgroundColor: group.color }}
+                            />
+                          )}
+                          {group.name}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* Labels */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <LabelBadges labels={manual.labels ?? []} />
+                      <LabelAssignPopover
+                        holdingType="manual"
+                        holdingId={manual.id}
+                        currentLabels={manual.labels ?? []}
+                        onAssigned={fetchAll}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 
