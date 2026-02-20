@@ -261,13 +261,13 @@ export function DashboardPage() {
     const displayValue = convertFromRon(h.value_ron, dc, fx_rates);
     return (
       <TableRow key={`${h.type}-${h.id}`}>
-        <TableCell className="font-medium">
+        <TableCell className="w-[90px]">
           {h.ticker && (
-            <Badge variant="secondary" className="mr-2">
-              {h.ticker}
-            </Badge>
+            <Badge variant="secondary">{h.ticker}</Badge>
           )}
-          {h.name}
+        </TableCell>
+        <TableCell className="font-medium">{h.name}</TableCell>
+        <TableCell>
           <LabelBadges labels={h.labels ?? []} />
         </TableCell>
         <TableCell className="text-right">
@@ -547,7 +547,9 @@ export function DashboardPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[90px]">Ticker</TableHead>
                       <TableHead>Name</TableHead>
+                      <TableHead>Labels</TableHead>
                       <TableHead className="text-right">Shares</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-right">Value</TableHead>
@@ -562,7 +564,7 @@ export function DashboardPage() {
                         return (
                           <Fragment key={`group-${currency}`}>
                             <TableRow className="bg-muted/50">
-                              <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
+                              <TableCell colSpan={6} className="font-semibold text-xs uppercase tracking-wide">
                                 {currency}
                               </TableCell>
                               <TableCell className="text-right font-semibold text-xs">
