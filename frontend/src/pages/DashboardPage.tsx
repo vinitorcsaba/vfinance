@@ -262,12 +262,12 @@ export function DashboardPage() {
     return (
       <TableRow key={`${h.type}-${h.id}`}>
         <TableCell className="font-medium">
-          {h.name}
           {h.ticker && (
-            <Badge variant="secondary" className="ml-2">
+            <Badge variant="secondary" className="mr-2">
               {h.ticker}
             </Badge>
           )}
+          {h.name}
           <LabelBadges labels={h.labels ?? []} />
         </TableCell>
         <TableCell className="text-right">
