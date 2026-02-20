@@ -146,14 +146,14 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
         <div className="h-[200px] sm:h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartDataInDisplayCurrency}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="date"
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               style={{ fontSize: "12px" }}
             />
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               style={{ fontSize: "12px" }}
               tickFormatter={(value) =>
                 value.toLocaleString("en", { maximumFractionDigits: 0 })
@@ -161,8 +161,8 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--background)",
+                border: "1px solid var(--border)",
                 borderRadius: "6px",
                 fontSize: "12px",
               }}
@@ -180,10 +180,10 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
             <Line
               type="monotone"
               dataKey="value"
-              stroke="hsl(var(--primary))"
+              stroke="var(--primary)"
               strokeWidth={2}
-              dot={{ fill: "hsl(var(--primary))", r: 4 }}
-              activeDot={{ r: 6 }}
+              dot={{ fill: "var(--primary)", stroke: "var(--primary)", r: 4 }}
+              activeDot={{ r: 6, fill: "var(--primary)" }}
             />
           </LineChart>
         </ResponsiveContainer>
