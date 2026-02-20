@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Line, LineChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -145,13 +145,7 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
       <div className="border rounded-md p-2 sm:p-4">
         <div className="h-[200px] sm:h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartDataInDisplayCurrency}>
-            <defs>
-              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-              </linearGradient>
-            </defs>
+          <LineChart data={chartDataInDisplayCurrency}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               dataKey="date"
@@ -183,15 +177,15 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
                 ];
               }}
             />
-            <Area
+            <Line
               type="monotone"
               dataKey="value"
               stroke="hsl(var(--primary))"
               strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorValue)"
+              dot={{ fill: "hsl(var(--primary))", r: 4 }}
+              activeDot={{ r: 6 }}
             />
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
         </div>
       </div>
