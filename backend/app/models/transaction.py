@@ -15,5 +15,8 @@ class Transaction(Base):
     shares: Mapped[float] = mapped_column(Float, nullable=False)
     price_per_share: Mapped[float] = mapped_column(Float, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+    value_ron: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     holding: Mapped["StockHolding"] = relationship(back_populates="transactions")

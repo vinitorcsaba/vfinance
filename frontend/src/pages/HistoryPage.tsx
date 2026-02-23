@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PortfolioChart } from "@/components/PortfolioChart";
+import type { DateRange } from "@/components/PortfolioChart";
+import { ROIPanel } from "@/components/ROIPanel";
 import { listSnapshots, getSnapshot, createSnapshot } from "@/api/snapshots";
 import type { SnapshotSummary, SnapshotRead, LabelInSnapshot } from "@/types/snapshot";
 
@@ -39,6 +41,7 @@ export function HistoryPage() {
   const [displayCurrency, setDisplayCurrency] = useState<Currency>(() => {
     return (localStorage.getItem("displayCurrency") as Currency) || "RON";
   });
+  const [dateRange, setDateRange] = useState<DateRange>("all");
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -159,8 +162,15 @@ export function HistoryPage() {
         </div>
       </div>
 
+      {/* ROI Panel */}
+      <ROIPanel displayCurrency={displayCurrency} dateRange={dateRange} />
+
       {/* Portfolio Value Chart */}
-      <PortfolioChart displayCurrency={displayCurrency} />
+      <PortfolioChart
+        displayCurrency={displayCurrency}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+      />
 
       {snapshots.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">

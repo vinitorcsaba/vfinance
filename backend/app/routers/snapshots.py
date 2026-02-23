@@ -5,9 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
+from app.models.holding import StockHolding
 from app.models.snapshot import Snapshot
+from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.snapshot import ChartDataPoint, ChartDataResponse, SnapshotRead, SnapshotSummary
+from app.schemas.snapshot import ChartDataPoint, ChartDataResponse, ROIResponse, SnapshotRead, SnapshotSummary
+from app.services.portfolio import _fetch_fx_rates
 from app.services.sheets import export_snapshot_to_sheets
 from app.services.snapshot import create_snapshot
 
@@ -105,6 +108,100 @@ def get_chart_data(
         ))
 
     return ChartDataResponse(points=points, labels_applied=labels)
+
+
+@router.get("/roi", response_model=ROIResponse)
+def get_roi(
+    range: str = Query(default="all", pattern="^(3m|6m|1y|all)$"),
+    db: Session = Depends(get_user_db),
+):
+    """
+    Calculate cash-flow-adjusted ROI for the given date range.
+
+    Formula: (end_value - start_value - net_cash_flows) / start_value
+    net_cash_flows = stock transactions (buys positive, sells negative) + manual holding value deltas.
+    Must be defined before /{snapshot_id} to avoid FastAPI parsing 'roi' as an integer.
+    """
+    # Compute cutoff date based on range
+    cutoff_date = None
+    if range == "3m":
+        cutoff_date = datetime.now() - timedelta(days=90)
+    elif range == "6m":
+        cutoff_date = datetime.now() - timedelta(days=180)
+    elif range == "1y":
+        cutoff_date = datetime.now() - timedelta(days=365)
+
+    # Fetch snapshots ascending
+    query = db.query(Snapshot).order_by(Snapshot.taken_at.asc())
+    if cutoff_date:
+        query = query.filter(Snapshot.taken_at >= cutoff_date)
+    snapshots = query.all()
+
+    if len(snapshots) < 2:
+        return ROIResponse(snapshot_count=len(snapshots), range=range)
+
+    first_snap = snapshots[0]
+    last_snap = snapshots[-1]
+
+    fx_rates = _fetch_fx_rates()
+
+    # --- Stock cash flows ---
+    # Query transactions joined with their holding's currency
+    tx_rows = (
+        db.query(Transaction, StockHolding.currency)
+        .join(StockHolding, Transaction.holding_id == StockHolding.id)
+        .filter(
+            Transaction.date >= first_snap.taken_at.date(),
+            Transaction.date <= last_snap.taken_at.date(),
+        )
+        .all()
+    )
+
+    stock_cash_flows = 0.0
+    for tx, currency in tx_rows:
+        if tx.value_ron is not None:
+            stock_cash_flows += tx.value_ron
+        else:
+            # Legacy row: fall back to current FX rates
+            rate = fx_rates.get(currency or "RON", 1.0)
+            stock_cash_flows += tx.shares * tx.price_per_share * rate
+
+    # --- Manual holding cash flows (snapshot deltas) ---
+    def manual_values_from_snap(snap) -> dict[str, float]:
+        """Extract {name: value_ron} for manual holdings in a snapshot."""
+        result = {}
+        for item in snap.items:
+            if item.holding_type == "manual":
+                result[item.name] = item.value_ron
+        return result
+
+    first_manual = manual_values_from_snap(first_snap)
+    last_manual = manual_values_from_snap(last_snap)
+    all_manual_names = set(first_manual) | set(last_manual)
+    manual_cash_flows = sum(
+        last_manual.get(name, 0.0) - first_manual.get(name, 0.0)
+        for name in all_manual_names
+    )
+
+    net_cash_flows = round(stock_cash_flows + manual_cash_flows, 2)
+
+    start_value = first_snap.total_value_ron
+    end_value = last_snap.total_value_ron
+    absolute_gain = round(end_value - start_value - net_cash_flows, 2)
+    roi_percent = round(absolute_gain / start_value * 100, 4) if start_value != 0 else None
+
+    return ROIResponse(
+        period_start=first_snap.taken_at,
+        period_end=last_snap.taken_at,
+        start_value_ron=round(start_value, 2),
+        end_value_ron=round(end_value, 2),
+        net_cash_flows_ron=net_cash_flows,
+        absolute_gain_ron=absolute_gain,
+        roi_percent=roi_percent,
+        fx_rates=fx_rates,
+        snapshot_count=len(snapshots),
+        range=range,
+    )
 
 
 @router.get("/{snapshot_id}", response_model=SnapshotRead)

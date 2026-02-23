@@ -1,4 +1,4 @@
-import type { ChartDataResponse, SnapshotRead, SnapshotSummary } from "@/types/snapshot";
+import type { ChartDataResponse, ROIResponse, SnapshotRead, SnapshotSummary } from "@/types/snapshot";
 
 const BASE = "/api/v1";
 
@@ -37,6 +37,10 @@ export function exportSnapshot(id: number): Promise<{ sheets_url: string }> {
 
 export function deleteSnapshot(id: number): Promise<void> {
   return request(`${BASE}/snapshots/${id}`, { method: "DELETE" });
+}
+
+export function getROI(range: "3m" | "6m" | "1y" | "all"): Promise<ROIResponse> {
+  return request(`${BASE}/snapshots/roi?range=${range}`);
 }
 
 export function getChartData(params: {

@@ -21,5 +21,8 @@ class TransactionRead(BaseModel):
     shares: float
     price_per_share: float
     notes: str | None
+    value_ron: float | None = None
+    value_eur: float | None = None
+    value_usd: float | None = None
 
     model_config = {"from_attributes": True}

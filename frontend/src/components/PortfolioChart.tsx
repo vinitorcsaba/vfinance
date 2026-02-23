@@ -11,17 +11,18 @@ import type { ChartDataPoint } from "@/types/snapshot";
 import type { Label } from "@/types/labels";
 
 type Currency = "RON" | "EUR" | "USD";
-type DateRange = "3m" | "6m" | "1y" | "all";
+export type DateRange = "3m" | "6m" | "1y" | "all";
 
 interface PortfolioChartProps {
   displayCurrency: Currency;
+  dateRange: DateRange;
+  onDateRangeChange: (r: DateRange) => void;
 }
 
-export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
+export function PortfolioChart({ displayCurrency, dateRange, onDateRangeChange }: PortfolioChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [allLabels, setAllLabels] = useState<Label[]>([]);
-  const [dateRange, setDateRange] = useState<DateRange>("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export function PortfolioChart({ displayCurrency }: PortfolioChartProps) {
               key={range}
               variant={dateRange === range ? "default" : "outline"}
               size="sm"
-              onClick={() => setDateRange(range)}
+              onClick={() => onDateRangeChange(range)}
             >
               {range.toUpperCase()}
             </Button>

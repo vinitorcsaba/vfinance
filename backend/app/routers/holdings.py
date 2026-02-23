@@ -5,6 +5,7 @@ from app.dependencies.auth import get_user_db
 from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
 from app.models.transaction import Transaction
+from app.services.portfolio import _fetch_fx_rates
 from app.services.price import lookup_ticker, normalize_ticker
 from app.schemas.holding import (
     ManualAddValue,
@@ -112,12 +113,21 @@ def create_transaction(stock_id: int, body: TransactionCreate, db: Session = Dep
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
 
+    fx = _fetch_fx_rates()
+    currency = stock.currency or "RON"
+    rate = fx.get(currency, 1.0)
+    value_native = body.shares * body.price_per_share  # signed: positive=buy, negative=sell
+    value_ron = round(value_native * rate, 2)
+
     transaction = Transaction(
         holding_id=stock_id,
         date=body.date,
         shares=body.shares,
         price_per_share=body.price_per_share,
         notes=body.notes,
+        value_ron=value_ron,
+        value_eur=round(value_ron / fx.get("EUR", 5.0), 2),
+        value_usd=round(value_ron / fx.get("USD", 4.5), 2),
     )
     db.add(transaction)
     db.commit()

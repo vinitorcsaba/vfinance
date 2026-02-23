@@ -40,6 +40,19 @@ export interface SnapshotRead {
   items: SnapshotItemRead[];
 }
 
+export interface ROIResponse {
+  period_start: string | null;
+  period_end: string | null;
+  start_value_ron: number | null;
+  end_value_ron: number | null;
+  net_cash_flows_ron: number | null;
+  absolute_gain_ron: number | null;
+  roi_percent: number | null;
+  fx_rates: Record<string, number>;
+  snapshot_count: number;
+  range: string;
+}
+
 export interface ChartDataPoint {
   date: string;
   total_ron: number;

@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
@@ -67,6 +68,20 @@ class SnapshotRead(BaseModel):
     items: list[SnapshotItemRead]
 
     model_config = {"from_attributes": True}
+
+
+class ROIResponse(BaseModel):
+    """Response for ROI calculation endpoint."""
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
+    start_value_ron: Optional[float] = None
+    end_value_ron: Optional[float] = None
+    net_cash_flows_ron: Optional[float] = None
+    absolute_gain_ron: Optional[float] = None
+    roi_percent: Optional[float] = None
+    fx_rates: dict[str, float] = {}
+    snapshot_count: int = 0
+    range: str = "all"
 
 
 class SnapshotSummary(BaseModel):
