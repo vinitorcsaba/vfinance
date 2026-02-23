@@ -44,12 +44,14 @@ function fmtAbsolute(value: number | null, currency: Currency): string {
 export function ROIPanel({ displayCurrency, dateRange }: ROIPanelProps) {
   const [data, setData] = useState<ROIResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(false);
     getROI(dateRange)
-      .then(setData)
-      .catch(() => toast.error("Failed to load ROI data"))
+      .then((d) => { setData(d); setLoadError(false); })
+      .catch(() => { toast.error("Failed to load ROI data"); setLoadError(true); })
       .finally(() => setLoading(false));
   }, [dateRange]);
 
@@ -61,7 +63,15 @@ export function ROIPanel({ displayCurrency, dateRange }: ROIPanelProps) {
     );
   }
 
-  if (!data || data.snapshot_count < 2 || data.roi_percent === undefined) {
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center py-6 border rounded-md">
+        <p className="text-sm text-muted-foreground">Failed to load ROI data.</p>
+      </div>
+    );
+  }
+
+  if (!data || data.snapshot_count < 2) {
     return (
       <div className="flex items-center justify-center py-6 border rounded-md">
         <p className="text-sm text-muted-foreground">

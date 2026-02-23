@@ -232,9 +232,23 @@ def init_user_db(email: str):
                             shares FLOAT NOT NULL,
                             price_per_share FLOAT NOT NULL,
                             notes TEXT,
+                            value_ron FLOAT,
+                            value_eur FLOAT,
+                            value_usd FLOAT,
                             FOREIGN KEY (holding_id) REFERENCES stock_holdings (id)
                         )
                     """))
+                else:
+                    tx_columns = [col["name"] for col in inspector.get_columns("transactions")]
+                    if "value_ron" not in tx_columns:
+                        logger.info("Adding value_ron column to transactions")
+                        conn.execute(text("ALTER TABLE transactions ADD COLUMN value_ron FLOAT"))
+                    if "value_eur" not in tx_columns:
+                        logger.info("Adding value_eur column to transactions")
+                        conn.execute(text("ALTER TABLE transactions ADD COLUMN value_eur FLOAT"))
+                    if "value_usd" not in tx_columns:
+                        logger.info("Adding value_usd column to transactions")
+                        conn.execute(text("ALTER TABLE transactions ADD COLUMN value_usd FLOAT"))
 
             logger.info(f"Manual schema updates completed for user {email}")
         except Exception as schema_error:
