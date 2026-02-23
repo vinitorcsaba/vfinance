@@ -4,4 +4,5 @@ export type User = {
   name: string;
   picture_url: string | null;
   sheets_connected: boolean;
+  encryption_enabled: boolean;
 };

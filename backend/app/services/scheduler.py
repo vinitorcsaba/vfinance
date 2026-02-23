@@ -59,6 +59,13 @@ def take_monthly_snapshot_job():
         # This works because get_user_session only uses the prefix part anyway
         email = f"{email_prefix}@unknown.com"
 
+        # Skip locked encrypted databases — scheduler cannot unlock them
+        from app.database import read_user_meta, _db_keys
+        meta = read_user_meta(email)
+        if meta.get("encrypted") and email not in _db_keys:
+            logger.info(f"Skipping monthly snapshot for {email_prefix}: database is locked")
+            continue
+
         try:
             db = get_user_session(email)
             snapshot = create_snapshot(db)

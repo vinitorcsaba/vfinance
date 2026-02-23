@@ -18,6 +18,9 @@ export async function googleLogin(token: string): Promise<User> {
 
 export async function getMe(): Promise<User> {
   const res = await fetch(`${BASE}/me`, { credentials: "include" });
+  if (res.status === 423) {
+    throw Object.assign(new Error("Database locked"), { status: 423 });
+  }
   if (!res.ok) {
     throw new Error("Not authenticated");
   }

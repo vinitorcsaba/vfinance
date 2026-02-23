@@ -10,12 +10,14 @@ import { HoldingsPage } from "@/pages/HoldingsPage"
 import { SnapshotsPage } from "@/pages/SnapshotsPage"
 import { HistoryPage } from "@/pages/HistoryPage"
 import { AllocationGroupsPage } from "@/pages/AllocationGroupsPage"
+import { SettingsPage } from "@/pages/SettingsPage"
 import { LoginPage } from "@/pages/LoginPage"
+import { UnlockDatabaseDialog } from "@/components/UnlockDatabaseDialog"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { getBackupStatus, uploadBackup } from "@/api/backup"
 
 function AppContent() {
-  const { user, loading, logout } = useAuth()
+  const { user, loading, logout, encryptionLocked } = useAuth()
   const [backupConfigured, setBackupConfigured] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -34,6 +36,11 @@ function AppContent() {
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
+  }
+
+  // Show unlock dialog before login check — user is authenticated but DB locked
+  if (encryptionLocked) {
+    return <UnlockDatabaseDialog open={true} />
   }
 
   if (!user) {
@@ -113,6 +120,7 @@ function AppContent() {
             <TabsTrigger value="allocations">Allocations</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-6">
             <DashboardPage />
@@ -129,6 +137,9 @@ function AppContent() {
           <TabsContent value="snapshots" className="mt-6">
             <SnapshotsPage />
           </TabsContent>
+          <TabsContent value="settings" className="mt-6">
+            <SettingsPage />
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -139,71 +150,29 @@ function AppContent() {
             <SheetTitle>VFinance</SheetTitle>
           </SheetHeader>
           <nav className="mt-6 flex flex-col gap-2">
-            <button
-              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
-                activeTab === "dashboard"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-              onClick={() => {
-                setActiveTab("dashboard")
-                setMobileMenuOpen(false)
-              }}
-            >
-              Dashboard
-            </button>
-            <button
-              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
-                activeTab === "holdings"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-              onClick={() => {
-                setActiveTab("holdings")
-                setMobileMenuOpen(false)
-              }}
-            >
-              Holdings
-            </button>
-            <button
-              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
-                activeTab === "allocations"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-              onClick={() => {
-                setActiveTab("allocations")
-                setMobileMenuOpen(false)
-              }}
-            >
-              Allocations
-            </button>
-            <button
-              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
-                activeTab === "history"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-              onClick={() => {
-                setActiveTab("history")
-                setMobileMenuOpen(false)
-              }}
-            >
-              History
-            </button>
-            <button
-              className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
-                activeTab === "snapshots"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-              onClick={() => {
-                setActiveTab("snapshots")
-                setMobileMenuOpen(false)
-              }}
-            >
-              Snapshots
-            </button>
+            {[
+              { value: "dashboard", label: "Dashboard" },
+              { value: "holdings", label: "Holdings" },
+              { value: "allocations", label: "Allocations" },
+              { value: "history", label: "History" },
+              { value: "snapshots", label: "Snapshots" },
+              { value: "settings", label: "Settings" },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                className={`w-full rounded-md px-4 py-3 text-left text-sm font-medium transition-colors ${
+                  activeTab === value
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted"
+                }`}
+                onClick={() => {
+                  setActiveTab(value)
+                  setMobileMenuOpen(false)
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </nav>
         </SheetContent>
       </Sheet>

@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { User } from "@/types/auth";
 import * as authApi from "@/api/auth";
+import * as encryptionApi from "@/api/encryption";
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  encryptionLocked: boolean;
   login: (googleToken: string) => Promise<void>;
   logout: () => Promise<void>;
+  unlockDatabase: (password: string) => Promise<void>;
   connectSheets: () => Promise<void>;
   disconnectSheets: () => Promise<void>;
 };
@@ -16,23 +19,45 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [encryptionLocked, setEncryptionLocked] = useState(false);
 
   useEffect(() => {
     authApi
       .getMe()
-      .then(setUser)
-      .catch(() => setUser(null))
+      .then((u) => {
+        setUser(u);
+        setEncryptionLocked(false);
+      })
+      .catch(async (err: unknown) => {
+        if ((err as { status?: number })?.status === 423) {
+          setEncryptionLocked(true);
+        } else {
+          setUser(null);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (googleToken: string) => {
     const u = await authApi.googleLogin(googleToken);
     setUser(u);
+    if (u.encryption_enabled) {
+      const status = await encryptionApi.getEncryptionStatus();
+      setEncryptionLocked(!status.unlocked);
+    }
   }, []);
 
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
+    setEncryptionLocked(false);
+  }, []);
+
+  const unlockDatabase = useCallback(async (password: string) => {
+    await encryptionApi.unlockDatabase(password);
+    const u = await authApi.getMe();
+    setUser(u);
+    setEncryptionLocked(false);
   }, []);
 
   const connectSheets = useCallback(async () => {
@@ -67,7 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, connectSheets, disconnectSheets }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        encryptionLocked,
+        login,
+        logout,
+        unlockDatabase,
+        connectSheets,
+        disconnectSheets,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

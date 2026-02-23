@@ -40,8 +40,14 @@ def get_user_db(email: str = Depends(get_user_email_from_token)) -> Session:
     """
     Get database session for the authenticated user.
     Opens the user-specific database based on their email.
+    Returns 423 Locked if the database is encrypted and not yet unlocked.
     """
-    # Ensure user's database exists (creates it if first login)
+    from app.database import read_user_meta, _db_keys
+
+    meta = read_user_meta(email)
+    if meta.get("encrypted") and email not in _db_keys:
+        raise HTTPException(status_code=423, detail="Database locked")
+
     init_user_db(email)
 
     db = get_user_session(email)
@@ -60,11 +66,8 @@ def get_current_user(
     Get the current authenticated user from their personal database.
     Creates User record if it doesn't exist (first login).
     """
-    # Try to find user by email
     user = db.query(User).filter(User.email == email).first()
 
-    # This shouldn't happen (user should be created during login),
-    # but handle it gracefully
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
 

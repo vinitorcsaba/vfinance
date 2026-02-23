@@ -15,6 +15,7 @@ from app.routers.portfolio import router as portfolio_router
 from app.routers.prices import router as prices_router
 from app.routers.snapshots import router as snapshots_router
 from app.routers.backup import router as backup_router
+from app.routers.encryption import router as encryption_router
 from app.services.scheduler import start_scheduler, stop_scheduler
 import app.models  # noqa: F401 — register ORM models
 
@@ -64,6 +65,7 @@ app.include_router(portfolio_router)
 app.include_router(prices_router)
 app.include_router(snapshots_router)
 app.include_router(backup_router)
+app.include_router(encryption_router)
 
 
 @app.get("/api/v1/health")

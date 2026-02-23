@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from sqlalchemy.orm import Session
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 def _create_session_token(email: str) -> str:
     """Create JWT session token with email as subject."""
     payload = {
-        "sub": email,  # Store email instead of user ID
+        "sub": email,
         "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=settings.auth_token_expire_minutes),
     }
     return jwt.encode(payload, settings.auth_secret_key, algorithm="HS256")
@@ -38,12 +38,15 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 
 def _user_response(user: User) -> UserResponse:
+    from app.database import read_user_meta
+    meta = read_user_meta(user.email)
     return UserResponse(
         id=user.id,
         email=user.email,
         name=user.name,
         picture_url=user.picture_url,
         sheets_connected=user.google_refresh_token is not None,
+        encryption_enabled=meta.get("encrypted", False),
     )
 
 
@@ -65,19 +68,31 @@ def google_login(body: GoogleLoginRequest, response: Response):
     if not idinfo.get("email_verified"):
         raise HTTPException(status_code=401, detail="Email not verified by Google")
 
-    # Check allowlist
     if settings.allowed_emails:
         allowed = [e.strip().lower() for e in settings.allowed_emails.split(",") if e.strip()]
         if email.lower() not in allowed:
             raise HTTPException(status_code=403, detail="Email not in allowlist")
 
-    # Initialize user's database (creates tables if first login)
+    # Initialize user's database (creates tables if first login, skips if locked)
     init_user_db(email)
 
-    # Open user's database
+    # Handle locked encrypted DB — return partial response from Google token data
+    from app.database import read_user_meta, _db_keys
+    meta = read_user_meta(email)
+    if meta.get("encrypted") and email not in _db_keys:
+        token = _create_session_token(email)
+        _set_session_cookie(response, token)
+        return UserResponse(
+            id=0,
+            email=email,
+            name=idinfo.get("name", ""),
+            picture_url=idinfo.get("picture"),
+            sheets_connected=False,
+            encryption_enabled=True,
+        )
+
     db = get_user_session(email)
     try:
-        # Upsert user in their personal database
         google_id = idinfo["sub"]
         user = db.query(User).filter(User.google_id == google_id).first()
         if user:
@@ -96,7 +111,6 @@ def google_login(body: GoogleLoginRequest, response: Response):
         db.commit()
         db.refresh(user)
 
-        # Create session token with email
         token = _create_session_token(email)
         _set_session_cookie(response, token)
         return _user_response(user)
@@ -110,7 +124,15 @@ def get_me(user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-def logout(response: Response):
+def logout(response: Response, request: Request):
+    from app.database import _db_keys, invalidate_user_engine
+    try:
+        from app.dependencies.auth import get_user_email_from_token
+        email = get_user_email_from_token(request)
+        _db_keys.pop(email, None)
+        invalidate_user_engine(email)
+    except Exception:
+        pass  # JWT may be invalid/expired; that's fine
     response.delete_cookie(key="session", path="/")
     return {"message": "Logged out"}
 

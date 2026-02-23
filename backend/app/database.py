@@ -1,5 +1,8 @@
+import hashlib
+import json
 import os
 import re
+import secrets
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -15,30 +18,103 @@ class Base(DeclarativeBase):
 # Cache of user engines to avoid recreating them
 _user_engines: dict[str, any] = {}
 
+# In-memory key store: email -> hex-encoded 32-byte key (lost on server restart by design)
+_db_keys: dict[str, str] = {}
+
 
 def get_user_db_path(email: str) -> str:
     """
     Generate database file path for a user based on their email.
     Uses email prefix (before @) as identifier, sanitized for filesystem.
     """
-    # Extract prefix before @ and sanitize (remove dots, lowercase)
     prefix = email.split("@")[0]
-    # Replace non-alphanumeric with underscore
     safe_prefix = re.sub(r"[^a-zA-Z0-9]", "_", prefix).lower()
 
-    # Ensure data directory exists
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
 
     return str(data_dir / f"user_{safe_prefix}.db")
 
 
+def get_user_meta_path(email: str) -> str:
+    prefix = re.sub(r"[^a-zA-Z0-9]", "_", email.split("@")[0]).lower()
+    return str(Path("data") / f"user_{prefix}_meta.json")
+
+
+def read_user_meta(email: str) -> dict:
+    path = Path(get_user_meta_path(email))
+    if not path.exists():
+        return {"encrypted": False, "salt": None}
+    with open(path) as f:
+        return json.load(f)
+
+
+def write_user_meta(email: str, meta: dict) -> None:
+    path = Path(get_user_meta_path(email))
+    path.parent.mkdir(exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w") as f:
+        json.dump(meta, f)
+    os.replace(str(tmp), str(path))
+
+
+def derive_key(password: str, salt_hex: str) -> str:
+    """PBKDF2-HMAC-SHA256, 260k rounds, 32-byte key → hex string."""
+    key = hashlib.pbkdf2_hmac(
+        "sha256", password.encode(), bytes.fromhex(salt_hex), 260_000, 32
+    )
+    return key.hex()
+
+
+def verify_db_key(db_path: str, hex_key: str) -> bool:
+    """Returns True if hex_key opens the encrypted DB, False if wrong password."""
+    try:
+        import sqlcipher3.dbapi2 as sqlcipher
+        conn = sqlcipher.connect(db_path)
+        conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+        conn.execute("SELECT 1")
+        conn.close()
+        return True
+    except Exception as e:
+        err = str(e).lower()
+        if "file is not a database" in err or "notadb" in err or "sqlite_notadb" in err:
+            return False
+        raise
+
+
+def invalidate_user_engine(email: str) -> None:
+    """Dispose and remove cached engine (called on encryption state change)."""
+    if email in _user_engines:
+        try:
+            _user_engines[email].dispose()
+        except Exception:
+            pass
+        del _user_engines[email]
+
+
 def get_user_engine(email: str):
     """Get or create SQLAlchemy engine for a user's database."""
     if email not in _user_engines:
         db_path = get_user_db_path(email)
-        db_url = f"sqlite:///{db_path}"
-        engine = create_engine(db_url, connect_args={"check_same_thread": False})
+        hex_key = _db_keys.get(email)
+        if hex_key:
+            import sqlcipher3.dbapi2 as sqlcipher
+
+            def make_conn():
+                conn = sqlcipher.connect(db_path)
+                conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+                return conn
+
+            engine = create_engine(
+                "sqlite+pysqlite://",
+                creator=make_conn,
+                connect_args={"check_same_thread": False},
+            )
+        else:
+            engine = create_engine(
+                f"sqlite:///{db_path}",
+                connect_args={"check_same_thread": False},
+            )
         _user_engines[email] = engine
     return _user_engines[email]
 
@@ -66,6 +142,12 @@ def init_user_db(email: str):
     from app.services.spaces import is_spaces_configured, download_user_db
 
     logger = logging.getLogger(__name__)
+
+    # Skip if DB is encrypted and key is not in memory yet
+    meta = read_user_meta(email)
+    if meta.get("encrypted") and email not in _db_keys:
+        return  # DB is locked; migrations will run on unlock
+
     db_path = Path(get_user_db_path(email))
 
     # If DB doesn't exist locally, try to download from cloud
@@ -77,41 +159,31 @@ def init_user_db(email: str):
     db_url = str(engine.url)
 
     try:
-        # Create Alembic config programmatically
-        # Find alembic.ini - try multiple locations
         backend_dir = Path(__file__).parent.parent  # backend/app -> backend
         alembic_ini_path = backend_dir / "alembic.ini"
 
         if not alembic_ini_path.exists():
-            # Fallback: try relative to cwd
             alembic_ini_path = Path("alembic.ini") if "backend" in os.getcwd() else Path("backend/alembic.ini")
 
         logger.info(f"Using alembic.ini at: {alembic_ini_path}")
 
         alembic_cfg = Config(str(alembic_ini_path))
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-
-        # Suppress Alembic output to avoid cluttering logs
         alembic_cfg.attributes["configure_logger"] = False
 
-        # Run migrations to head
         command.upgrade(alembic_cfg, "head")
         logger.info(f"Successfully migrated database for user {email}")
     except Exception as e:
-        # Fall back to manual schema updates if migrations fail
         logger.warning(f"Alembic migration failed for user {email}: {e}")
         logger.info("Attempting manual schema updates...")
 
-        # Create tables if they don't exist
         Base.metadata.create_all(bind=engine)
 
-        # Manually add missing columns and tables if needed
         try:
             inspector = inspect(engine)
             table_names = inspector.get_table_names()
 
             with engine.begin() as conn:
-                # Add missing columns to snapshot_items
                 if "snapshot_items" in table_names:
                     columns = [col["name"] for col in inspector.get_columns("snapshot_items")]
 
@@ -125,7 +197,6 @@ def init_user_db(email: str):
                         conn.execute(text("ALTER TABLE snapshot_items ADD COLUMN value_usd FLOAT NOT NULL DEFAULT 0.0"))
                         conn.execute(text("UPDATE snapshot_items SET value_usd = value_ron / 4.5 WHERE value_usd = 0.0"))
 
-                # Add missing columns to snapshots
                 if "snapshots" in table_names:
                     columns = [col["name"] for col in inspector.get_columns("snapshots")]
 
@@ -151,7 +222,6 @@ def init_user_db(email: str):
                             )
                         """))
 
-                # Create transactions table if missing
                 if "transactions" not in table_names:
                     logger.info("Creating transactions table")
                     conn.execute(text("""
@@ -176,5 +246,4 @@ def get_db():
     Deprecated: This will be removed. Use get_user_db() with email context instead.
     Kept temporarily for migration compatibility.
     """
-    # This is a placeholder - will be replaced by user-specific DBs
     raise RuntimeError("get_db() is deprecated - use get_user_db() with user email")
