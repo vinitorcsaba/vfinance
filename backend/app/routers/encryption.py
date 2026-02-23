@@ -78,35 +78,24 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     salt = secrets.token_hex(32)
     hex_key = derive_key(body.password, salt)
 
-    # Use sqlcipher_export to create an encrypted copy, then replace the original
+    # Use sqlcipher3 + sqlcipher_export to create an encrypted copy, then replace the original.
+    # Open the plaintext file with sqlcipher3 WITHOUT setting any key pragma — sqlcipher3 reads
+    # it as a standard SQLite file. Then attach the encrypted destination and use sqlcipher_export.
     import sqlcipher3.dbapi2 as sqlcipher
-    import tempfile
     import os
 
     tmp_path = db_path + ".enc_tmp"
     try:
-        # Open the plaintext DB and export to encrypted temp file
-        plain_conn = sqlite3.connect(db_path)
-        plain_conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY \"x'{hex_key}'\"")
-        plain_conn.execute("SELECT sqlcipher_export('encrypted')")
-        plain_conn.execute("DETACH DATABASE encrypted")
-        plain_conn.close()
+        conn = sqlcipher.connect(db_path)
+        # No PRAGMA key here — plaintext file must be opened key-free
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY \"x'{hex_key}'\"")
+        conn.execute("SELECT sqlcipher_export('encrypted')")
+        conn.execute("DETACH DATABASE encrypted")
+        conn.close()
     except Exception as e:
-        # sqlite3 may not support sqlcipher_export; use sqlcipher3 API instead
-        try:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            # Open source with sqlcipher3 (no key = plaintext mode)
-            src_conn = sqlcipher.connect(db_path)
-            src_conn.execute("PRAGMA key = \"x''\"")  # empty key = plaintext
-            src_conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY \"x'{hex_key}'\"")
-            src_conn.execute("SELECT sqlcipher_export('encrypted')")
-            src_conn.execute("DETACH DATABASE encrypted")
-            src_conn.close()
-        except Exception as inner_e:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            raise HTTPException(status_code=500, detail=f"Failed to encrypt database: {inner_e}")
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise HTTPException(status_code=500, detail=f"Failed to encrypt database: {e}")
 
     # Replace original with encrypted version
     os.replace(tmp_path, db_path)
@@ -205,12 +194,13 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     tmp_path = db_path + ".plain_tmp"
     try:
         import sqlcipher3.dbapi2 as sqlcipher
-        src_conn = sqlcipher.connect(db_path)
-        src_conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
-        src_conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY ''")
-        src_conn.execute("SELECT sqlcipher_export('plaintext')")
-        src_conn.execute("DETACH DATABASE plaintext")
-        src_conn.close()
+        conn = sqlcipher.connect(db_path)
+        conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+        # ATTACH without KEY clause — creates a standard unencrypted SQLite file
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext")
+        conn.execute("SELECT sqlcipher_export('plaintext')")
+        conn.execute("DETACH DATABASE plaintext")
+        conn.close()
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
