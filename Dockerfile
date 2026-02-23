@@ -14,7 +14,7 @@ WORKDIR /app
 
 COPY backend/requirements.txt backend/requirements.txt
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsqlcipher-dev libsqlcipher0 && \
+    libsqlcipher-dev && \
     rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
