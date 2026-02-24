@@ -169,25 +169,30 @@ def init_user_db(email: str):
 
     # Guard against a downloaded encrypted DB whose meta file was missing.
     # Try opening the file as plain SQLite; if it fails with "file is not a
-    # database" it is a SQLCipher file — write the meta and return so the
-    # unlock dialog is shown instead of crashing with a 500.
+    # database" it is a SQLCipher file.  Recover the salt from the first 16
+    # bytes of the file (SQLCipher always stores its KDF salt there), write
+    # the meta, and return so the unlock dialog is shown instead of a 500.
     if db_path.exists() and not meta.get("encrypted"):
         import sqlite3 as _sqlite3
         try:
             _c = _sqlite3.connect(str(db_path))
             _c.execute("SELECT 1")
             _c.close()
-        except _sqlite3.DatabaseError as _e:
-            if "file is not a database" in str(_e).lower():
-                logger.warning(
-                    "DB for %s appears encrypted but meta says plaintext — "
-                    "writing encrypted=True so unlock dialog is shown", email
-                )
-                # We don't have the salt; preserve any existing salt value
-                existing_salt = meta.get("salt")
-                write_user_meta(email, {"encrypted": True, "salt": existing_salt})
-                invalidate_user_engine(email)
-                return
+        except _sqlite3.DatabaseError:
+            logger.warning(
+                "DB for %s appears encrypted but meta says plaintext — "
+                "recovering salt from file header and writing encrypted=True", email
+            )
+            # SQLCipher stores the 16-byte KDF salt at the very start of the file.
+            # Reading it here lets derive_key() reconstruct the correct key later.
+            try:
+                with open(str(db_path), "rb") as _f:
+                    recovered_salt = _f.read(16).hex()
+            except Exception:
+                recovered_salt = None
+            write_user_meta(email, {"encrypted": True, "salt": recovered_salt})
+            invalidate_user_engine(email)
+            return
 
     # Run Alembic migrations to create or update schema
     engine = get_user_engine(email)
