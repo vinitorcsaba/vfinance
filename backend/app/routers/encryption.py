@@ -159,16 +159,20 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
 
     invalidate_user_engine(email)
 
-    # Decrypt via copy + PRAGMA rekey to "x''" (plaintext):
+    # Decrypt via sqlcipher_export to a new plaintext file:
+    # Open encrypted source with the correct password, then ATTACH a new empty file
+    # with KEY "x''" (empty raw bytes = SQLCipher plaintext passthrough mode).
+    # sqlcipher_export copies all data without encryption into the destination.
     import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".plain_tmp"
     try:
-        shutil.copy2(db_path, tmp_path)
-        conn = sqlcipher.connect(tmp_path)
+        conn = sqlcipher.connect(db_path)
         conn.execute(f"PRAGMA key = '{escaped}'")
-        conn.execute("PRAGMA rekey = \"x''\"")  # rekey to plaintext
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"x''\"")
+        conn.execute("SELECT sqlcipher_export('plaintext')")
+        conn.execute("DETACH DATABASE plaintext")
         conn.close()
     except Exception as e:
         if os.path.exists(tmp_path):
