@@ -44,7 +44,7 @@ def is_db_encrypted(db_path: str) -> bool:
     import sqlite3 as _sqlite3
     try:
         conn = _sqlite3.connect(db_path)
-        conn.execute("SELECT 1")
+        conn.execute("SELECT count(*) FROM sqlite_master")
         conn.close()
         return False
     except _sqlite3.DatabaseError:
@@ -58,7 +58,7 @@ def verify_db_key(db_path: str, password: str) -> bool:
         escaped = password.replace("'", "''")
         conn = sqlcipher.connect(db_path)
         conn.execute(f"PRAGMA key = '{escaped}'")
-        conn.execute("SELECT 1")
+        conn.execute("SELECT count(*) FROM sqlite_master")
         conn.close()
         return True
     except Exception as e:
