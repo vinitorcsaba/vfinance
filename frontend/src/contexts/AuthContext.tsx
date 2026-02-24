@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { User } from "@/types/auth";
 import * as authApi from "@/api/auth";
 import * as encryptionApi from "@/api/encryption";
@@ -17,6 +18,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [encryptionLocked, setEncryptionLocked] = useState(false);
@@ -39,19 +41,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (googleToken: string) => {
+    queryClient.clear();
     const u = await authApi.googleLogin(googleToken);
     setUser(u);
     if (u.encryption_enabled) {
       const status = await encryptionApi.getEncryptionStatus();
       setEncryptionLocked(!status.unlocked);
     }
-  }, []);
+  }, [queryClient]);
 
   const logout = useCallback(async () => {
     await authApi.logout();
+    queryClient.clear();
     setUser(null);
     setEncryptionLocked(false);
-  }, []);
+  }, [queryClient]);
 
   const unlockDatabase = useCallback(async (password: string) => {
     await encryptionApi.unlockDatabase(password);
