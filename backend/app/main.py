@@ -1,9 +1,11 @@
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
@@ -55,6 +57,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        "Unhandled exception on %s %s: %s\n%s",
+        request.method,
+        request.url.path,
+        exc,
+        traceback.format_exc(),
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 app.include_router(allocation_groups_router)
