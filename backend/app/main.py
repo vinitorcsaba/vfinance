@@ -1,7 +1,15 @@
 import logging
+import sys
 import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# Ensure all app loggers emit to stdout so DO runtime logs capture them
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,13 +69,11 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.error(
-        "Unhandled exception on %s %s: %s\n%s",
-        request.method,
-        request.url.path,
-        exc,
-        traceback.format_exc(),
-    )
+    tb = traceback.format_exc()
+    msg = f"UNHANDLED 500 on {request.method} {request.url.path}: {exc}\n{tb}"
+    # Print directly to stdout — guaranteed visible in DO runtime logs
+    print(msg, flush=True)
+    logger.error(msg)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
