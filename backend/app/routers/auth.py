@@ -71,10 +71,14 @@ def google_login(body: GoogleLoginRequest, response: Response):
     # Initialize user's database (creates tables if first login, skips if locked)
     init_user_db(email)
 
-    # Handle locked encrypted DB — return partial response from Google token data
-    from app.database import read_user_meta, _db_keys
+    # Every fresh Google login must clear the in-memory key so the unlock dialog
+    # is always shown after a new login, even if the same user was previously
+    # unlocked in another browser tab or session.
+    from app.database import read_user_meta, _db_keys, invalidate_user_engine
     meta = read_user_meta(email)
-    if meta.get("encrypted") and email not in _db_keys:
+    if meta.get("encrypted"):
+        _db_keys.pop(email, None)
+        invalidate_user_engine(email)
         token = _create_session_token(email)
         _set_session_cookie(response, token)
         return UserResponse(
