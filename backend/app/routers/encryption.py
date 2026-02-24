@@ -71,26 +71,40 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     except Exception:
         pass
 
-    # Encrypt via copy + PRAGMA rekey:
-    # 1. Copy the plaintext file to a temp path
-    # 2. Open the copy with sqlcipher3 in plaintext mode (PRAGMA key = "x''")
-    # 3. PRAGMA rekey = 'password' encrypts it in-place with SQLCipher's default KDF
-    # 4. Replace the original
-    # This avoids ATTACH cipher-settings inheritance issues.
+    # Encrypt via SQL dump + fresh SQLCipher DB:
+    # 1. Dump schema+data from plaintext source using stdlib sqlite3 (no cipher involvement)
+    # 2. Create a new, clean SQLCipher-encrypted DB using only PRAGMA key = 'password'
+    # 3. Replay the dump into it
+    # 4. Verify the output is actually encrypted, then replace the original.
+    # This avoids the PRAGMA key = "x''" / PRAGMA rekey interaction where rekey
+    # may silently do nothing (raw-key passthrough mode doesn't support rekey).
     import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".enc_tmp"
     try:
-        shutil.copy2(db_path, tmp_path)
-        conn = sqlcipher.connect(tmp_path)
-        conn.execute("PRAGMA key = \"x''\"")  # open copy as plaintext
-        conn.execute(f"PRAGMA rekey = '{escaped}'")  # encrypt in-place
-        conn.close()
+        # Dump source as plain SQL using stdlib sqlite3
+        src_conn = sqlite3.connect(db_path)
+        sql_dump = "\n".join(src_conn.iterdump())
+        src_conn.close()
+
+        # Create fresh encrypted DB — no x'' / raw-key mode, just a normal text password
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        enc_conn = sqlcipher.connect(tmp_path)
+        enc_conn.execute(f"PRAGMA key = '{escaped}'")
+        enc_conn.executescript(sql_dump)
+        enc_conn.close()
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise HTTPException(status_code=500, detail=f"Failed to encrypt database: {e}")
+
+    # Verify the output is actually encrypted before replacing the original
+    if not is_db_encrypted(tmp_path):
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise HTTPException(status_code=500, detail="Encryption verification failed: output is still plaintext")
 
     # Replace original with encrypted version
     os.replace(tmp_path, db_path)
