@@ -1,9 +1,7 @@
 from pydantic_settings import BaseSettings
-from pathlib import Path
 
 
 class Settings(BaseSettings):
-    database_url: str = f"sqlite:///{Path(__file__).resolve().parent.parent.parent / 'data' / 'vfinance.db'}"
     # Google OAuth2
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -17,11 +15,6 @@ class Settings(BaseSettings):
     spaces_bucket: str = ""
     spaces_access_key: str = ""
     spaces_secret_key: str = ""
-
-    @property
-    def db_file_path(self) -> Path:
-        """Extract filesystem path from sqlite:/// URL."""
-        return Path(self.database_url.replace("sqlite:///", ""))
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

@@ -10,24 +10,12 @@ from alembic import context
 # Add backend/ to sys.path so "app.*" imports work
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.config import settings
 from app.database import Base
 from app.models import Label, ManualHolding, Snapshot, SnapshotItem, StockHolding, User  # noqa: F401 — register models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
-# Set the SQLAlchemy URL from application settings, but only if not already
-# overridden programmatically (e.g., init_user_db sets a per-user DB path
-# via alembic_cfg.set_main_option before calling command.upgrade).
-try:
-    _existing_url = config.get_main_option("sqlalchemy.url")
-except Exception:
-    _existing_url = None
-
-if not _existing_url:
-    config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

@@ -36,20 +36,3 @@ services:
 
     routes:
       - path: /
-
-# Migration job (runs before deployment)
-jobs:
-  - name: migrate
-    kind: PRE_DEPLOY
-    github:
-      repo: vinitorcsaba/vfinance
-      branch: master
-
-    dockerfile_path: Dockerfile
-
-    # Override CMD to only run migrations
-    run_command: |
-      cd /app/backend && python -m alembic upgrade head
-
-    instance_count: 1
-    instance_size_slug: basic-xxs
