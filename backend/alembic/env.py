@@ -18,8 +18,16 @@ from app.models import Label, ManualHolding, Snapshot, SnapshotItem, StockHoldin
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set the SQLAlchemy URL from our application settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Set the SQLAlchemy URL from application settings, but only if not already
+# overridden programmatically (e.g., init_user_db sets a per-user DB path
+# via alembic_cfg.set_main_option before calling command.upgrade).
+try:
+    _existing_url = config.get_main_option("sqlalchemy.url")
+except Exception:
+    _existing_url = None
+
+if not _existing_url:
+    config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
