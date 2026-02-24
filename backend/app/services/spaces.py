@@ -60,6 +60,22 @@ def download_user_db(email: str) -> bool:
 
         client.download_file(settings.spaces_bucket, object_key, str(db_path))
         logger.info("Downloaded user DB from Spaces (%s → %s)", object_key, db_path)
+
+        # Also download the meta JSON (encryption state) if it exists in Spaces.
+        # Without it, an encrypted DB would be mistaken for plaintext on first login.
+        from app.database import get_user_meta_path
+        meta_path = Path(get_user_meta_path(email))
+        meta_key = os.path.basename(str(meta_path))
+        try:
+            meta_resp = client.list_objects_v2(
+                Bucket=settings.spaces_bucket, Prefix=meta_key, MaxKeys=1,
+            )
+            if meta_resp.get("KeyCount", 0) > 0:
+                client.download_file(settings.spaces_bucket, meta_key, str(meta_path))
+                logger.info("Downloaded user meta from Spaces (%s → %s)", meta_key, meta_path)
+        except Exception:
+            logger.warning("Could not download meta file for %s — will treat as unencrypted", email)
+
         return True
     except Exception:
         logger.exception("Failed to download user DB for %s — will create fresh", email)
