@@ -68,11 +68,6 @@ def google_login(body: GoogleLoginRequest, response: Response):
     if not idinfo.get("email_verified"):
         raise HTTPException(status_code=401, detail="Email not verified by Google")
 
-    if settings.allowed_emails:
-        allowed = [e.strip().lower() for e in settings.allowed_emails.split(",") if e.strip()]
-        if email.lower() not in allowed:
-            raise HTTPException(status_code=403, detail="Email not in allowlist")
-
     # Initialize user's database (creates tables if first login, skips if locked)
     init_user_db(email)
 

@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     auth_secret_key: str = ""
     auth_token_expire_minutes: int = 1440  # 24 hours
     auth_cookie_secure: bool = True  # Set False for local dev over HTTP
-    allowed_emails: str = ""  # comma-separated allowlist; empty = allow any Google account
 
     # DigitalOcean Spaces (S3-compatible) — leave blank to disable cloud backup
     spaces_endpoint_url: str = ""
