@@ -196,8 +196,8 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
         import sqlcipher3.dbapi2 as sqlcipher
         conn = sqlcipher.connect(db_path)
         conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
-        # ATTACH without KEY clause — creates a standard unencrypted SQLite file
-        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext")
+        # KEY "" forces plaintext (unencrypted) SQLite output
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"\"")
         conn.execute("SELECT sqlcipher_export('plaintext')")
         conn.execute("DETACH DATABASE plaintext")
         conn.close()
