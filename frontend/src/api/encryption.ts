@@ -57,3 +57,11 @@ export async function disableEncryption(password: string): Promise<void> {
   });
   await handleResponse(res);
 }
+
+export async function resetEncryptedDb(): Promise<void> {
+  const res = await fetch(`${BASE}/reset`, {
+    method: "POST",
+    credentials: "include",
+  });
+  await handleResponse(res);
+}

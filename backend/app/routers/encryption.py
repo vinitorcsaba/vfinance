@@ -4,6 +4,8 @@ All endpoints use get_user_email_from_token directly (NOT get_current_user)
 to avoid the 423 cycle — these endpoints must work even when DB is locked.
 """
 
+import os
+import shutil
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -69,21 +71,21 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     except Exception:
         pass
 
-    # Use sqlcipher3 + sqlcipher_export to create an encrypted copy, then replace the original.
-    # Open the plaintext file with sqlcipher3 WITHOUT setting any key pragma — sqlcipher3 reads
-    # it as a standard SQLite file. Then attach the encrypted destination and use sqlcipher_export.
+    # Encrypt via copy + PRAGMA rekey:
+    # 1. Copy the plaintext file to a temp path
+    # 2. Open the copy with sqlcipher3 in plaintext mode (PRAGMA key = "x''")
+    # 3. PRAGMA rekey = 'password' encrypts it in-place with SQLCipher's default KDF
+    # 4. Replace the original
+    # This avoids ATTACH cipher-settings inheritance issues.
     import sqlcipher3.dbapi2 as sqlcipher
-    import os
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".enc_tmp"
     try:
-        conn = sqlcipher.connect(db_path)
-        # PRAGMA key = "x''" tells SQLCipher 4 to treat the source as plaintext (no decryption)
-        conn.execute("PRAGMA key = \"x''\"")
-        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY '{escaped}'")
-        conn.execute("SELECT sqlcipher_export('encrypted')")
-        conn.execute("DETACH DATABASE encrypted")
+        shutil.copy2(db_path, tmp_path)
+        conn = sqlcipher.connect(tmp_path)
+        conn.execute("PRAGMA key = \"x''\"")  # open copy as plaintext
+        conn.execute(f"PRAGMA rekey = '{escaped}'")  # encrypt in-place
         conn.close()
     except Exception as e:
         if os.path.exists(tmp_path):
@@ -131,7 +133,6 @@ def change_password(body: ChangePasswordRequest, email: str = Depends(get_user_e
     if not verify_db_key(db_path, body.current_password):
         raise HTTPException(status_code=401, detail="Incorrect current password")
 
-    # Re-encrypt in-place using PRAGMA rekey
     import sqlcipher3.dbapi2 as sqlcipher
     old_escaped = body.current_password.replace("'", "''")
     new_escaped = body.new_password.replace("'", "''")
@@ -140,7 +141,6 @@ def change_password(body: ChangePasswordRequest, email: str = Depends(get_user_e
     conn.execute(f"PRAGMA rekey = '{new_escaped}'")
     conn.close()
 
-    # Update in-memory password and invalidate cached engine
     _db_keys[email] = body.new_password
     invalidate_user_engine(email)
 
@@ -157,33 +157,18 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     if not verify_db_key(db_path, body.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    # Close all connections
     invalidate_user_engine(email)
 
-    # Checkpoint WAL
-    try:
-        import sqlcipher3.dbapi2 as sqlcipher
-        escaped = body.password.replace("'", "''")
-        conn = sqlcipher.connect(db_path)
-        conn.execute(f"PRAGMA key = '{escaped}'")
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        conn.close()
-    except Exception:
-        pass
-
-    import os
+    # Decrypt via copy + PRAGMA rekey to "x''" (plaintext):
+    import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".plain_tmp"
     try:
-        import sqlcipher3.dbapi2 as sqlcipher
-        conn = sqlcipher.connect(db_path)
+        shutil.copy2(db_path, tmp_path)
+        conn = sqlcipher.connect(tmp_path)
         conn.execute(f"PRAGMA key = '{escaped}'")
-        # KEY "x''" forces true plaintext (unencrypted) SQLite output
-        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"x''\"")
-
-        conn.execute("SELECT sqlcipher_export('plaintext')")
-        conn.execute("DETACH DATABASE plaintext")
+        conn.execute("PRAGMA rekey = \"x''\"")  # rekey to plaintext
         conn.close()
     except Exception as e:
         if os.path.exists(tmp_path):
@@ -195,3 +180,31 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     _db_keys.pop(email, None)
 
     return {"message": "Encryption disabled"}
+
+
+@router.post("/reset")
+def reset_encrypted_db(email: str = Depends(get_user_email_from_token)):
+    """
+    Emergency reset: delete a locked encrypted database that cannot be opened.
+    The user will get a fresh empty database on next login.
+    Only works when the DB is encrypted AND locked (no key in memory) —
+    if the DB is already unlocked, use disable instead.
+    """
+    db_path = get_user_db_path(email)
+
+    if not is_db_encrypted(db_path):
+        raise HTTPException(status_code=400, detail="Database is not encrypted")
+
+    if email in _db_keys:
+        raise HTTPException(
+            status_code=400,
+            detail="Database is unlocked — use disable to remove encryption instead",
+        )
+
+    # Delete the locked DB and clear any cached state
+    invalidate_user_engine(email)
+    _db_keys.pop(email, None)
+    if os.path.exists(db_path):
+        os.remove(db_path)
+
+    return {"message": "Encrypted database deleted. A fresh database will be created on next login."}
