@@ -57,7 +57,7 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 - `SnapshotItem` — FK to snapshot, holding_type, ticker (nullable), name, labels (JSON string), shares, price, value, currency, value_ron
 - `User` — google_id, email, name, picture_url, google_access_token, google_refresh_token, sheets_spreadsheet_id, timestamps
 
-**Alembic**: Config in `backend/alembic.ini`, `env.py` reads DB URL from `app.config.settings`. Run migrations from project root: `python -m alembic -c backend/alembic.ini upgrade head`
+**Alembic**: Config in `backend/alembic.ini`. URL is set programmatically per-user in `init_user_db()` via `alembic_cfg.set_main_option("sqlalchemy.url", db_url)` before calling `command.upgrade()`. The ini file has `sqlalchemy.url = sqlite:///./data/dev.db` as a CLI-only fallback for `alembic revision --autogenerate` during development. Run migrations from project root: `python -m alembic -c backend/alembic.ini upgrade head`
 
 **Key directories**:
 - `backend/app/models/` — SQLAlchemy ORM models
@@ -84,7 +84,9 @@ docker run -p 8000:8000 -v vfinance-data:/app/data vfinance
 
 **Portfolio value charts** (FIN-21): Time-series area chart (`PortfolioChart.tsx`) on History page shows portfolio value trend over time. Recharts AreaChart with gradient fill, date range selector (3M/6M/1Y/All), label multi-select filter, and currency conversion. Backend endpoint `GET /api/v1/snapshots/chart-data?labels=Tech&labels=Crypto&range=6m` (defined before `/{snapshot_id}` to avoid FastAPI int parsing). Returns `ChartDataResponse` with `points: [{date, total_ron}]` and `labels_applied`. Label filtering uses AND logic, parsing JSON labels from snapshot items. Empty state with CTA when no snapshots exist.
 
-**Digital Ocean deployment**: `.do/app.yaml` configures automatic deployments with PRE_DEPLOY job that runs `alembic upgrade head` before each deployment. Dockerfile CMD also includes migrations as fallback. Environment variables: `VITE_GOOGLE_CLIENT_ID` (build-time), `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (runtime).
+**Database encryption**: Opt-in SQLCipher encryption per user. Enabled in Settings page. Key derivation: PBKDF2-HMAC-SHA256 (260k rounds, 32-byte key). Salt stored in `data/user_{prefix}_meta.json` (always plaintext). Derived key held in server RAM only (`_db_keys: dict[str, str]` in `database.py`, keyed by email) — never persisted, lost on server restart. Every fresh Google login clears the key and forces the unlock dialog, even if the same user was previously unlocked in another browser. `get_user_db()` returns HTTP 423 if DB is encrypted and key not in memory. Endpoints at `/api/v1/encryption/` (status, setup, unlock, change-password, disable). Frontend: `UnlockDatabaseDialog` (non-dismissible) shown before login check; `SettingsPage` for enable/change-password/disable. `sqlcipher3` PyPI package; needs `libsqlcipher-dev` in Docker.
+
+**Digital Ocean deployment**: `.do/app.yaml` configures automatic deployments (no PRE_DEPLOY job — per-user migrations run at login time via `init_user_db()`). Dockerfile CMD runs uvicorn directly. Environment variables: `VITE_GOOGLE_CLIENT_ID` (build-time), `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (runtime).
 
 **UI stack**: Shadcn/ui components + Tailwind CSS v4 (uses `@tailwindcss/vite` plugin, not PostCSS). Path alias `@/*` → `src/*` configured in both `vite.config.ts` and `tsconfig.json`.
 
