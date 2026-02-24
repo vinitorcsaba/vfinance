@@ -143,16 +143,29 @@ def init_user_db(email: str):
 
     logger = logging.getLogger(__name__)
 
-    # Skip if DB is encrypted and key is not in memory yet
-    meta = read_user_meta(email)
-    if meta.get("encrypted") and email not in _db_keys:
-        return  # DB is locked; migrations will run on unlock
-
     db_path = Path(get_user_db_path(email))
 
     # If DB doesn't exist locally, try to download from cloud
     if not db_path.exists() and is_spaces_configured():
         download_user_db(email)
+
+    # If DB still doesn't exist: clear any stale cached engine (the engine may hold
+    # pooled connections to a previously-deleted file's inode), and reset any orphaned
+    # encryption meta (can't unlock a DB that no longer exists on disk).
+    if not db_path.exists():
+        invalidate_user_engine(email)
+        orphan_meta = read_user_meta(email)
+        if orphan_meta.get("encrypted"):
+            logger.warning(
+                f"DB file missing but meta says encrypted for {email} — resetting to plaintext"
+            )
+            write_user_meta(email, {"encrypted": False, "salt": None})
+            _db_keys.pop(email, None)
+
+    # Skip if DB is encrypted and key is not in memory yet
+    meta = read_user_meta(email)
+    if meta.get("encrypted") and email not in _db_keys:
+        return  # DB is locked; migrations will run on unlock
 
     # Run Alembic migrations to create or update schema
     engine = get_user_engine(email)
