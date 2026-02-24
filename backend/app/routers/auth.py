@@ -38,15 +38,14 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 
 def _user_response(user: User) -> UserResponse:
-    from app.database import read_user_meta
-    meta = read_user_meta(user.email)
+    from app.database import is_db_encrypted, get_user_db_path
     return UserResponse(
         id=user.id,
         email=user.email,
         name=user.name,
         picture_url=user.picture_url,
         sheets_connected=user.google_refresh_token is not None,
-        encryption_enabled=meta.get("encrypted", False),
+        encryption_enabled=is_db_encrypted(get_user_db_path(user.email)),
     )
 
 
@@ -74,9 +73,8 @@ def google_login(body: GoogleLoginRequest, response: Response):
     # Every fresh Google login must clear the in-memory key so the unlock dialog
     # is always shown after a new login, even if the same user was previously
     # unlocked in another browser tab or session.
-    from app.database import read_user_meta, _db_keys, invalidate_user_engine
-    meta = read_user_meta(email)
-    if meta.get("encrypted"):
+    from app.database import is_db_encrypted, get_user_db_path, _db_keys, invalidate_user_engine
+    if is_db_encrypted(get_user_db_path(email)):
         _db_keys.pop(email, None)
         invalidate_user_engine(email)
         token = _create_session_token(email)

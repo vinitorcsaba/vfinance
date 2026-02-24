@@ -4,7 +4,6 @@ All endpoints use get_user_email_from_token directly (NOT get_current_user)
 to avoid the 423 cycle — these endpoints must work even when DB is locked.
 """
 
-import secrets
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,13 +11,11 @@ from pydantic import BaseModel
 
 from app.database import (
     _db_keys,
-    derive_key,
     get_user_db_path,
     init_user_db,
     invalidate_user_engine,
-    read_user_meta,
+    is_db_encrypted,
     verify_db_key,
-    write_user_meta,
 )
 from app.dependencies.auth import get_user_email_from_token
 
@@ -50,18 +47,16 @@ class DisableRequest(BaseModel):
 @router.get("/status", response_model=EncryptionStatusResponse)
 def get_status(email: str = Depends(get_user_email_from_token)):
     """Get encryption status without accessing the database."""
-    meta = read_user_meta(email)
-    return {"encrypted": meta.get("encrypted", False), "unlocked": email in _db_keys}
+    db_path = get_user_db_path(email)
+    return {"encrypted": is_db_encrypted(db_path), "unlocked": email in _db_keys}
 
 
 @router.post("/setup")
 def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_from_token)):
     """Enable encryption on a currently plaintext database."""
-    meta = read_user_meta(email)
-    if meta.get("encrypted"):
-        raise HTTPException(status_code=400, detail="Database is already encrypted")
-
     db_path = get_user_db_path(email)
+    if is_db_encrypted(db_path):
+        raise HTTPException(status_code=400, detail="Database is already encrypted")
 
     # Close all connections before modifying the file
     invalidate_user_engine(email)
@@ -74,21 +69,18 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     except Exception:
         pass
 
-    # Generate salt and derive key
-    salt = secrets.token_hex(32)
-    hex_key = derive_key(body.password, salt)
-
     # Use sqlcipher3 + sqlcipher_export to create an encrypted copy, then replace the original.
     # Open the plaintext file with sqlcipher3 WITHOUT setting any key pragma — sqlcipher3 reads
     # it as a standard SQLite file. Then attach the encrypted destination and use sqlcipher_export.
     import sqlcipher3.dbapi2 as sqlcipher
     import os
 
+    escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".enc_tmp"
     try:
         conn = sqlcipher.connect(db_path)
         # No PRAGMA key here — plaintext file must be opened key-free
-        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY \"x'{hex_key}'\"")
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY '{escaped}'")
         conn.execute("SELECT sqlcipher_export('encrypted')")
         conn.execute("DETACH DATABASE encrypted")
         conn.close()
@@ -100,9 +92,8 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     # Replace original with encrypted version
     os.replace(tmp_path, db_path)
 
-    # Store key in memory and save meta
-    _db_keys[email] = hex_key
-    write_user_meta(email, {"encrypted": True, "salt": salt})
+    # Store password in memory
+    _db_keys[email] = body.password
 
     return {"message": "Database encrypted successfully"}
 
@@ -110,20 +101,17 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
 @router.post("/unlock")
 def unlock_database(body: UnlockRequest, email: str = Depends(get_user_email_from_token)):
     """Unlock an encrypted database by providing the data password."""
-    meta = read_user_meta(email)
-    if not meta.get("encrypted"):
+    db_path = get_user_db_path(email)
+    if not is_db_encrypted(db_path):
         raise HTTPException(status_code=400, detail="Database is not encrypted")
 
     if email in _db_keys:
         return {"message": "Database is already unlocked"}
 
-    hex_key = derive_key(body.password, meta["salt"])
-
-    db_path = get_user_db_path(email)
-    if not verify_db_key(db_path, hex_key):
+    if not verify_db_key(db_path, body.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    _db_keys[email] = hex_key
+    _db_keys[email] = body.password
     invalidate_user_engine(email)
 
     # Run pending migrations now that key is in memory
@@ -135,31 +123,25 @@ def unlock_database(body: UnlockRequest, email: str = Depends(get_user_email_fro
 @router.post("/change-password")
 def change_password(body: ChangePasswordRequest, email: str = Depends(get_user_email_from_token)):
     """Change the data password for an encrypted database."""
-    meta = read_user_meta(email)
-    if not meta.get("encrypted"):
+    db_path = get_user_db_path(email)
+    if not is_db_encrypted(db_path):
         raise HTTPException(status_code=400, detail="Database is not encrypted")
 
-    # Verify current password
-    old_hex_key = derive_key(body.current_password, meta["salt"])
-    db_path = get_user_db_path(email)
-    if not verify_db_key(db_path, old_hex_key):
+    if not verify_db_key(db_path, body.current_password):
         raise HTTPException(status_code=401, detail="Incorrect current password")
-
-    # Generate new salt and key
-    new_salt = secrets.token_hex(32)
-    new_hex_key = derive_key(body.new_password, new_salt)
 
     # Re-encrypt in-place using PRAGMA rekey
     import sqlcipher3.dbapi2 as sqlcipher
+    old_escaped = body.current_password.replace("'", "''")
+    new_escaped = body.new_password.replace("'", "''")
     conn = sqlcipher.connect(db_path)
-    conn.execute(f"PRAGMA key = \"x'{old_hex_key}'\"")
-    conn.execute(f"PRAGMA rekey = \"x'{new_hex_key}'\"")
+    conn.execute(f"PRAGMA key = '{old_escaped}'")
+    conn.execute(f"PRAGMA rekey = '{new_escaped}'")
     conn.close()
 
-    # Update in-memory key and meta
-    _db_keys[email] = new_hex_key
+    # Update in-memory password and invalidate cached engine
+    _db_keys[email] = body.new_password
     invalidate_user_engine(email)
-    write_user_meta(email, {"encrypted": True, "salt": new_salt})
 
     return {"message": "Password changed successfully"}
 
@@ -167,13 +149,11 @@ def change_password(body: ChangePasswordRequest, email: str = Depends(get_user_e
 @router.post("/disable")
 def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email_from_token)):
     """Remove encryption from the database, converting it back to plaintext."""
-    meta = read_user_meta(email)
-    if not meta.get("encrypted"):
+    db_path = get_user_db_path(email)
+    if not is_db_encrypted(db_path):
         raise HTTPException(status_code=400, detail="Database is not encrypted")
 
-    hex_key = derive_key(body.password, meta["salt"])
-    db_path = get_user_db_path(email)
-    if not verify_db_key(db_path, hex_key):
+    if not verify_db_key(db_path, body.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
     # Close all connections
@@ -182,8 +162,9 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     # Checkpoint WAL
     try:
         import sqlcipher3.dbapi2 as sqlcipher
+        escaped = body.password.replace("'", "''")
         conn = sqlcipher.connect(db_path)
-        conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+        conn.execute(f"PRAGMA key = '{escaped}'")
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.close()
     except Exception:
@@ -191,11 +172,12 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
 
     import os
 
+    escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".plain_tmp"
     try:
         import sqlcipher3.dbapi2 as sqlcipher
         conn = sqlcipher.connect(db_path)
-        conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+        conn.execute(f"PRAGMA key = '{escaped}'")
         # KEY "" forces plaintext (unencrypted) SQLite output
         conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"\"")
         conn.execute("SELECT sqlcipher_export('plaintext')")
@@ -209,6 +191,5 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     os.replace(tmp_path, db_path)
 
     _db_keys.pop(email, None)
-    write_user_meta(email, {"encrypted": False, "salt": None})
 
     return {"message": "Encryption disabled"}

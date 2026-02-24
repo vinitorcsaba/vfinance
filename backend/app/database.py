@@ -1,8 +1,5 @@
-import hashlib
-import json
 import os
 import re
-import secrets
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -18,7 +15,7 @@ class Base(DeclarativeBase):
 # Cache of user engines to avoid recreating them
 _user_engines: dict[str, any] = {}
 
-# In-memory key store: email -> hex-encoded 32-byte key (lost on server restart by design)
+# In-memory key store: email -> text password (lost on server restart by design)
 _db_keys: dict[str, str] = {}
 
 
@@ -36,42 +33,31 @@ def get_user_db_path(email: str) -> str:
     return str(data_dir / f"user_{safe_prefix}.db")
 
 
-def get_user_meta_path(email: str) -> str:
-    prefix = re.sub(r"[^a-zA-Z0-9]", "_", email.split("@")[0]).lower()
-    return str(Path("data") / f"user_{prefix}_meta.json")
+def is_db_encrypted(db_path: str) -> bool:
+    """
+    Returns True if the database file is SQLCipher-encrypted.
+    Detection: try opening as plain SQLite — DatabaseError means encrypted.
+    Returns False if file doesn't exist (new user, not yet encrypted).
+    """
+    if not Path(db_path).exists():
+        return False
+    import sqlite3 as _sqlite3
+    try:
+        conn = _sqlite3.connect(db_path)
+        conn.execute("SELECT 1")
+        conn.close()
+        return False
+    except _sqlite3.DatabaseError:
+        return True
 
 
-def read_user_meta(email: str) -> dict:
-    path = Path(get_user_meta_path(email))
-    if not path.exists():
-        return {"encrypted": False, "salt": None}
-    with open(path) as f:
-        return json.load(f)
-
-
-def write_user_meta(email: str, meta: dict) -> None:
-    path = Path(get_user_meta_path(email))
-    path.parent.mkdir(exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w") as f:
-        json.dump(meta, f)
-    os.replace(str(tmp), str(path))
-
-
-def derive_key(password: str, salt_hex: str) -> str:
-    """PBKDF2-HMAC-SHA256, 260k rounds, 32-byte key → hex string."""
-    key = hashlib.pbkdf2_hmac(
-        "sha256", password.encode(), bytes.fromhex(salt_hex), 260_000, 32
-    )
-    return key.hex()
-
-
-def verify_db_key(db_path: str, hex_key: str) -> bool:
-    """Returns True if hex_key opens the encrypted DB, False if wrong password."""
+def verify_db_key(db_path: str, password: str) -> bool:
+    """Returns True if password opens the encrypted DB, False if wrong password."""
     try:
         import sqlcipher3.dbapi2 as sqlcipher
+        escaped = password.replace("'", "''")
         conn = sqlcipher.connect(db_path)
-        conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+        conn.execute(f"PRAGMA key = '{escaped}'")
         conn.execute("SELECT 1")
         conn.close()
         return True
@@ -96,13 +82,14 @@ def get_user_engine(email: str):
     """Get or create SQLAlchemy engine for a user's database."""
     if email not in _user_engines:
         db_path = get_user_db_path(email)
-        hex_key = _db_keys.get(email)
-        if hex_key:
+        password = _db_keys.get(email)
+        if password:
             import sqlcipher3.dbapi2 as sqlcipher
+            escaped = password.replace("'", "''")
 
             def make_conn():
                 conn = sqlcipher.connect(db_path)
-                conn.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+                conn.execute(f"PRAGMA key = '{escaped}'")
                 return conn
 
             engine = create_engine(
@@ -149,50 +136,13 @@ def init_user_db(email: str):
     if not db_path.exists() and is_spaces_configured():
         download_user_db(email)
 
-    # If DB still doesn't exist: clear any stale cached engine (the engine may hold
-    # pooled connections to a previously-deleted file's inode), and reset any orphaned
-    # encryption meta (can't unlock a DB that no longer exists on disk).
+    # If DB still doesn't exist: clear any stale cached engine
     if not db_path.exists():
         invalidate_user_engine(email)
-        orphan_meta = read_user_meta(email)
-        if orphan_meta.get("encrypted"):
-            logger.warning(
-                f"DB file missing but meta says encrypted for {email} — resetting to plaintext"
-            )
-            write_user_meta(email, {"encrypted": False, "salt": None})
-            _db_keys.pop(email, None)
 
     # Skip if DB is encrypted and key is not in memory yet
-    meta = read_user_meta(email)
-    if meta.get("encrypted") and email not in _db_keys:
+    if db_path.exists() and is_db_encrypted(str(db_path)) and email not in _db_keys:
         return  # DB is locked; migrations will run on unlock
-
-    # Guard against a downloaded encrypted DB whose meta file was missing.
-    # Try opening the file as plain SQLite; if it fails with "file is not a
-    # database" it is a SQLCipher file.  Recover the salt from the first 16
-    # bytes of the file (SQLCipher always stores its KDF salt there), write
-    # the meta, and return so the unlock dialog is shown instead of a 500.
-    if db_path.exists() and not meta.get("encrypted"):
-        import sqlite3 as _sqlite3
-        try:
-            _c = _sqlite3.connect(str(db_path))
-            _c.execute("SELECT 1")
-            _c.close()
-        except _sqlite3.DatabaseError:
-            logger.warning(
-                "DB for %s appears encrypted but meta says plaintext — "
-                "recovering salt from file header and writing encrypted=True", email
-            )
-            # SQLCipher stores the 16-byte KDF salt at the very start of the file.
-            # Reading it here lets derive_key() reconstruct the correct key later.
-            try:
-                with open(str(db_path), "rb") as _f:
-                    recovered_salt = _f.read(16).hex()
-            except Exception:
-                recovered_salt = None
-            write_user_meta(email, {"encrypted": True, "salt": recovered_salt})
-            invalidate_user_engine(email)
-            return
 
     # Run Alembic migrations to create or update schema
     engine = get_user_engine(email)

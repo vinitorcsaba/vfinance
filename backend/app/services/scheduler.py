@@ -60,9 +60,8 @@ def take_monthly_snapshot_job():
         email = f"{email_prefix}@unknown.com"
 
         # Skip locked encrypted databases — scheduler cannot unlock them
-        from app.database import read_user_meta, _db_keys
-        meta = read_user_meta(email)
-        if meta.get("encrypted") and email not in _db_keys:
+        from app.database import is_db_encrypted, _db_keys
+        if is_db_encrypted(str(db_file)) and email not in _db_keys:
             logger.info(f"Skipping monthly snapshot for {email_prefix}: database is locked")
             continue
 

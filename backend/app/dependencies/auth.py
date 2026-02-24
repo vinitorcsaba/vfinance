@@ -42,10 +42,9 @@ def get_user_db(email: str = Depends(get_user_email_from_token)) -> Session:
     Opens the user-specific database based on their email.
     Returns 423 Locked if the database is encrypted and not yet unlocked.
     """
-    from app.database import read_user_meta, _db_keys
+    from app.database import is_db_encrypted, _db_keys, get_user_db_path
 
-    meta = read_user_meta(email)
-    if meta.get("encrypted") and email not in _db_keys:
+    if is_db_encrypted(get_user_db_path(email)) and email not in _db_keys:
         raise HTTPException(status_code=423, detail="Database locked")
 
     init_user_db(email)
