@@ -42,10 +42,27 @@ def get_user_db(email: str = Depends(get_user_email_from_token)) -> Session:
     Opens the user-specific database based on their email.
     Returns 423 Locked if the database is encrypted and not yet unlocked.
     """
-    from app.database import is_db_encrypted, _db_keys, get_user_db_path
+    from app.database import (
+        _db_keys,
+        get_user_db_path,
+        invalidate_user_engine,
+        is_db_encrypted,
+        verify_db_key,
+    )
 
-    if is_db_encrypted(get_user_db_path(email)) and email not in _db_keys:
+    db_path = get_user_db_path(email)
+
+    if is_db_encrypted(db_path) and email not in _db_keys:
         raise HTTPException(status_code=423, detail="Database locked")
+
+    # Key is in memory but may be stale/wrong (e.g. DB was re-encrypted with
+    # different settings by a previous buggy attempt).  Verify before proceeding
+    # so a bad key surfaces as a recoverable 423 rather than a 500 mid-request.
+    if is_db_encrypted(db_path) and email in _db_keys:
+        if not verify_db_key(db_path, _db_keys[email]):
+            _db_keys.pop(email, None)
+            invalidate_user_engine(email)
+            raise HTTPException(status_code=423, detail="Database locked")
 
     init_user_db(email)
 

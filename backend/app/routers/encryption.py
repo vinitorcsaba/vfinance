@@ -71,40 +71,52 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     except Exception:
         pass
 
-    # Encrypt via SQL dump + fresh SQLCipher DB:
-    # 1. Dump schema+data from plaintext source using stdlib sqlite3 (no cipher involvement)
-    # 2. Create a new, clean SQLCipher-encrypted DB using only PRAGMA key = 'password'
-    # 3. Replay the dump into it
-    # 4. Verify the output is actually encrypted, then replace the original.
-    # This avoids the PRAGMA key = "x''" / PRAGMA rekey interaction where rekey
-    # may silently do nothing (raw-key passthrough mode doesn't support rekey).
+    # Encrypt using SQLite backup API:
+    # 1. Open source with sqlcipher3 in x'' passthrough mode (reads plaintext pages as-is)
+    # 2. Open an empty destination with a fresh text-password key (no x'' / raw-key mode)
+    # 3. src.backup(dst) copies pages at the C level; destination encrypts each page with
+    #    its own key — no cipher-settings inheritance possible (backup API is not ATTACH)
+    # 4. verify_db_key confirms the output is openable with the stored password
+    # 5. Remove stale WAL/SHM files from the old plaintext DB before replacing
     import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".enc_tmp"
     try:
-        # Dump source as plain SQL using stdlib sqlite3
-        src_conn = sqlite3.connect(db_path)
-        sql_dump = "\n".join(src_conn.iterdump())
-        src_conn.close()
-
-        # Create fresh encrypted DB — no x'' / raw-key mode, just a normal text password
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-        enc_conn = sqlcipher.connect(tmp_path)
-        enc_conn.execute(f"PRAGMA key = '{escaped}'")
-        enc_conn.executescript(sql_dump)
-        enc_conn.close()
+
+        src = sqlcipher.connect(db_path)
+        src.execute("PRAGMA key = \"x''\"")  # plaintext passthrough — read source as-is
+
+        dst = sqlcipher.connect(tmp_path)
+        dst.execute(f"PRAGMA key = '{escaped}'")  # standard text-password KDF for destination
+
+        src.backup(dst)  # page-level copy: src pages → encrypted dst pages
+        src.close()
+        dst.close()
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise HTTPException(status_code=500, detail=f"Failed to encrypt database: {e}")
 
-    # Verify the output is actually encrypted before replacing the original
+    # Belt-and-suspenders: verify the output is encrypted AND the key opens it
     if not is_db_encrypted(tmp_path):
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-        raise HTTPException(status_code=500, detail="Encryption verification failed: output is still plaintext")
+        raise HTTPException(status_code=500, detail="Encryption failed: output file is not encrypted")
+
+    if not verify_db_key(tmp_path, body.password):
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise HTTPException(status_code=500, detail="Encryption failed: key verification failed")
+
+    # Remove stale WAL/SHM files from the old plaintext DB so SQLCipher doesn't
+    # try to apply plaintext WAL pages to the newly encrypted database
+    for suffix in ["-wal", "-shm"]:
+        stale = db_path + suffix
+        if os.path.exists(stale):
+            os.remove(stale)
 
     # Replace original with encrypted version
     os.replace(tmp_path, db_path)
