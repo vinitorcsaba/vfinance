@@ -79,7 +79,8 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     tmp_path = db_path + ".enc_tmp"
     try:
         conn = sqlcipher.connect(db_path)
-        # No PRAGMA key here — plaintext file must be opened key-free
+        # PRAGMA key = "x''" tells SQLCipher 4 to treat the source as plaintext (no decryption)
+        conn.execute("PRAGMA key = \"x''\"")
         conn.execute(f"ATTACH DATABASE '{tmp_path}' AS encrypted KEY '{escaped}'")
         conn.execute("SELECT sqlcipher_export('encrypted')")
         conn.execute("DETACH DATABASE encrypted")
@@ -178,8 +179,9 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
         import sqlcipher3.dbapi2 as sqlcipher
         conn = sqlcipher.connect(db_path)
         conn.execute(f"PRAGMA key = '{escaped}'")
-        # KEY "" forces plaintext (unencrypted) SQLite output
-        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"\"")
+        # KEY "x''" forces true plaintext (unencrypted) SQLite output
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"x''\"")
+
         conn.execute("SELECT sqlcipher_export('plaintext')")
         conn.execute("DETACH DATABASE plaintext")
         conn.close()
