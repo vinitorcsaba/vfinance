@@ -67,6 +67,26 @@ def download_user_db(email: str) -> bool:
         return False
 
 
+def list_user_db_keys() -> list[str]:
+    """
+    List all user database object keys in the Spaces bucket.
+    Returns a list of filenames like ['user_john_doe.db', ...].
+    """
+    if not is_spaces_configured():
+        return []
+    try:
+        client = _get_s3_client()
+        resp = client.list_objects_v2(Bucket=settings.spaces_bucket, Prefix="user_")
+        return [
+            obj["Key"]
+            for obj in resp.get("Contents", [])
+            if obj["Key"].endswith(".db")
+        ]
+    except Exception:
+        logger.exception("Failed to list user databases from Spaces")
+        return []
+
+
 def upload_user_db(email: str) -> bool:
     """
     Upload a user's database to Spaces using their email.
