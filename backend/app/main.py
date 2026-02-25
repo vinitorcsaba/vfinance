@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 import traceback
@@ -11,12 +12,14 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
+import jwt
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.services.spaces import is_spaces_configured, upload_user_db
 from app.routers.allocation_groups import router as allocation_groups_router
 from app.routers.auth import router as auth_router
 from app.routers.holdings import router as holdings_router
@@ -65,6 +68,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Paths that handle their own uploads or don't mutate user data
+_BACKUP_SKIP_PREFIXES = (
+    "/api/v1/auth/",
+    "/api/v1/backup/",
+    "/api/v1/encryption/",
+)
+
+
+@app.middleware("http")
+async def auto_backup_middleware(request: Request, call_next):
+    """
+    After any successful mutating request to data endpoints, upload the user's
+    database to Spaces in a background thread so no change is ever lost.
+    """
+    response = await call_next(request)
+
+    if (
+        request.method in ("POST", "PUT", "PATCH", "DELETE")
+        and response.status_code < 300
+        and is_spaces_configured()
+        and not any(request.url.path.startswith(p) for p in _BACKUP_SKIP_PREFIXES)
+    ):
+        token = request.cookies.get("session")
+        if token:
+            try:
+                payload = jwt.decode(token, settings.auth_secret_key, algorithms=["HS256"])
+                email: str | None = payload.get("sub")
+                if email and "@" in email:
+                    loop = asyncio.get_running_loop()
+                    loop.run_in_executor(None, upload_user_db, email)
+            except Exception:
+                pass  # Best-effort — never block the response
+
+    return response
 
 
 @app.exception_handler(Exception)
