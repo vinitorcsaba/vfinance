@@ -159,7 +159,11 @@ def create_transaction(stock_id: int, body: TransactionCreate, db: Session = Dep
     if not stock:
         raise HTTPException(status_code=404, detail="Stock holding not found")
 
-    fx = _fetch_fx_rates()
+    txn_date = body.date
+    if txn_date < dt.date.today():
+        fx = fetch_historical_fx_rates(txn_date)
+    else:
+        fx = _fetch_fx_rates()
     currency = stock.currency or "RON"
     rate = fx.get(currency, 1.0)
     value_native = body.shares * body.price_per_share  # signed: positive=buy, negative=sell

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchHistoricalPrice } from "@/api/prices";
 import type { StockHolding } from "@/types/holdings";
 
 export interface AddSharesFormData {
@@ -35,17 +36,41 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPr
   const [pricePerShare, setPricePerShare] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
   const [error, setError] = useState("");
+  const dateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (open) {
       setShares("");
-      setDate(new Date().toISOString().split("T")[0]); // Today's date in YYYY-MM-DD
+      setDate(new Date().toISOString().split("T")[0]);
       setPricePerShare(currentPrice?.toString() || "");
       setNotes("");
       setError("");
     }
+    return () => {
+      if (dateDebounceRef.current) clearTimeout(dateDebounceRef.current);
+    };
   }, [open, currentPrice]);
+
+  function handleDateChange(newDate: string) {
+    setDate(newDate);
+    if (!stock?.ticker) return;
+    if (dateDebounceRef.current) clearTimeout(dateDebounceRef.current);
+    dateDebounceRef.current = setTimeout(async () => {
+      setFetchingPrice(true);
+      try {
+        const result = await fetchHistoricalPrice(stock.ticker, newDate);
+        if (result.price !== null) {
+          setPricePerShare(result.price.toString());
+        }
+      } catch {
+        // Silently fail — user can type a price manually
+      } finally {
+        setFetchingPrice(false);
+      }
+    }, 500);
+  }
 
   const sharesToAdd = Number(shares) || 0;
   const newTotal = (stock?.shares ?? 0) + sharesToAdd;
@@ -102,13 +127,17 @@ export function AddSharesDialog({ open, onOpenChange, stock, onSubmit, currentPr
               id="transaction-date"
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => handleDateChange(e.target.value)}
               required
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="price-per-share">Price per share</Label>
+            <Label htmlFor="price-per-share" className="flex items-center gap-1">
+              Price per share
+              {fetchingPrice && <Loader2Icon className="h-3 w-3 animate-spin text-muted-foreground" />}
+            </Label>
             <Input
               id="price-per-share"
               type="number"
