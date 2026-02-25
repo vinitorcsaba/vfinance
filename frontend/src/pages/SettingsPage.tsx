@@ -116,7 +116,7 @@ export function SettingsPage() {
               <span>⚠️</span>
               <span>
                 Automatic monthly snapshots are <strong>not created</strong> for encrypted databases.<br/>
-                The scheduler cannot unlock your database without your Data Password.
+                The scheduler cannot unlock your database without your Data Password.<br/>
                 Take snapshots manually while logged in.
               </span>
             </div>
