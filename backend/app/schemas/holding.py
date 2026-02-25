@@ -37,7 +37,7 @@ class StockAddShares(BaseModel):
 
 
 class ManualAddValue(BaseModel):
-    value: float = Field(..., gt=0)
+    value: float = Field(..., ne=0)
 
 
 class StockHoldingRead(BaseModel):

@@ -37,7 +37,7 @@ export function AddValueDialog({ open, onOpenChange, holding, onSubmit }: Props)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (valueToAdd <= 0) return;
+    if (valueToAdd === 0) return;
 
     setSubmitting(true);
     setError("");
@@ -69,12 +69,11 @@ export function AddValueDialog({ open, onOpenChange, holding, onSubmit }: Props)
           </p>
 
           <div className="grid gap-2">
-            <Label htmlFor="add-value">Value to add ({holding?.currency})</Label>
+            <Label htmlFor="add-value">Amount ({holding?.currency}) — negative to extract</Label>
             <Input
               id="add-value"
               type="number"
               step="any"
-              min="0.01"
               placeholder="Amount"
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -82,7 +81,7 @@ export function AddValueDialog({ open, onOpenChange, holding, onSubmit }: Props)
             />
           </div>
 
-          {valueToAdd > 0 && (
+          {valueToAdd !== 0 && (
             <p className="text-sm text-muted-foreground">
               New total:{" "}
               <span className="font-medium text-foreground">
@@ -97,9 +96,9 @@ export function AddValueDialog({ open, onOpenChange, holding, onSubmit }: Props)
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={valueToAdd <= 0 || submitting}>
+            <Button type="submit" disabled={valueToAdd === 0 || submitting}>
               {submitting && <Loader2Icon className="animate-spin" />}
-              Add Value
+              {valueToAdd < 0 ? "Extract Value" : "Add Value"}
             </Button>
           </DialogFooter>
         </form>
