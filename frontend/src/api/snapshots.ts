@@ -39,8 +39,10 @@ export function deleteSnapshot(id: number): Promise<void> {
   return request(`${BASE}/snapshots/${id}`, { method: "DELETE" });
 }
 
-export function getROI(range: "3m" | "6m" | "1y" | "all"): Promise<ROIResponse> {
-  return request(`${BASE}/snapshots/roi?range=${range}`);
+export function getROI(range: "3m" | "6m" | "1y" | "all", labels?: string[]): Promise<ROIResponse> {
+  const params = new URLSearchParams({ range });
+  labels?.forEach((l) => params.append("labels", l));
+  return request(`${BASE}/snapshots/roi?${params}`);
 }
 
 export function getChartData(params: {

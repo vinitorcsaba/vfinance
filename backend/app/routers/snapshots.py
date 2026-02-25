@@ -113,6 +113,7 @@ def get_chart_data(
 @router.get("/roi", response_model=ROIResponse)
 def get_roi(
     range: str = Query(default="all", pattern="^(3m|6m|1y|all)$"),
+    labels: list[str] = Query(default=[]),
     db: Session = Depends(get_user_db),
 ):
     """
@@ -120,8 +121,21 @@ def get_roi(
 
     Formula: (end_value - start_value - net_cash_flows) / start_value
     net_cash_flows = stock transactions (buys positive, sells negative) + manual holding value deltas.
+    If labels are specified, only holdings matching all those labels (AND logic) are included.
     Must be defined before /{snapshot_id} to avoid FastAPI parsing 'roi' as an integer.
     """
+    def item_matches_labels(item, required: list[str]) -> bool:
+        if not required:
+            return True
+        item_labels = []
+        if item.labels:
+            try:
+                parsed = json.loads(item.labels)
+                item_labels = [l["name"] for l in parsed if isinstance(l, dict) and "name" in l]
+            except json.JSONDecodeError:
+                item_labels = [n.strip() for n in item.labels.split(",") if n.strip()]
+        return all(lbl in item_labels for lbl in required)
+
     # Compute cutoff date based on range
     cutoff_date = None
     if range == "3m":
@@ -145,10 +159,17 @@ def get_roi(
 
     fx_rates = _fetch_fx_rates()
 
+    # --- Start / end portfolio values ---
+    if not labels:
+        start_value = first_snap.total_value_ron
+        end_value = last_snap.total_value_ron
+    else:
+        start_value = sum(item.value_ron for item in first_snap.items if item_matches_labels(item, labels))
+        end_value = sum(item.value_ron for item in last_snap.items if item_matches_labels(item, labels))
+
     # --- Stock cash flows ---
-    # Query transactions joined with their holding's currency
     tx_rows = (
-        db.query(Transaction, StockHolding.currency)
+        db.query(Transaction, StockHolding)
         .join(StockHolding, Transaction.holding_id == StockHolding.id)
         .filter(
             Transaction.date >= first_snap.taken_at.date(),
@@ -158,20 +179,24 @@ def get_roi(
     )
 
     stock_cash_flows = 0.0
-    for tx, currency in tx_rows:
+    for tx, holding in tx_rows:
+        if labels:
+            holding_label_names = [l.name for l in holding.labels]
+            if not all(lbl in holding_label_names for lbl in labels):
+                continue
         if tx.value_ron is not None:
             stock_cash_flows += tx.value_ron
         else:
             # Legacy row: fall back to current FX rates
-            rate = fx_rates.get(currency or "RON", 1.0)
+            rate = fx_rates.get(holding.currency or "RON", 1.0)
             stock_cash_flows += tx.shares * tx.price_per_share * rate
 
     # --- Manual holding cash flows (snapshot deltas) ---
     def manual_values_from_snap(snap) -> dict[str, float]:
-        """Extract {name: value_ron} for manual holdings in a snapshot."""
+        """Extract {name: value_ron} for manual holdings in a snapshot, respecting label filter."""
         result = {}
         for item in snap.items:
-            if item.holding_type == "manual":
+            if item.holding_type == "manual" and item_matches_labels(item, labels):
                 result[item.name] = item.value_ron
         return result
 
@@ -185,8 +210,6 @@ def get_roi(
 
     net_cash_flows = round(stock_cash_flows + manual_cash_flows, 2)
 
-    start_value = first_snap.total_value_ron
-    end_value = last_snap.total_value_ron
     absolute_gain = round(end_value - start_value - net_cash_flows, 2)
     roi_percent = round(absolute_gain / start_value * 100, 4) if start_value != 0 else None
 

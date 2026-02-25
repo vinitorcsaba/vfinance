@@ -42,6 +42,7 @@ export function HistoryPage() {
     return (localStorage.getItem("displayCurrency") as Currency) || "RON";
   });
   const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -163,13 +164,15 @@ export function HistoryPage() {
       </div>
 
       {/* ROI Panel */}
-      <ROIPanel displayCurrency={displayCurrency} dateRange={dateRange} />
+      <ROIPanel displayCurrency={displayCurrency} dateRange={dateRange} selectedLabels={selectedLabels} />
 
       {/* Portfolio Value Chart */}
       <PortfolioChart
         displayCurrency={displayCurrency}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
+        selectedLabels={selectedLabels}
+        onSelectedLabelsChange={setSelectedLabels}
       />
 
       {snapshots.length === 0 ? (

@@ -17,12 +17,23 @@ interface PortfolioChartProps {
   displayCurrency: Currency;
   dateRange: DateRange;
   onDateRangeChange: (r: DateRange) => void;
+  selectedLabels?: string[];
+  onSelectedLabelsChange?: (l: string[]) => void;
 }
 
-export function PortfolioChart({ displayCurrency, dateRange, onDateRangeChange }: PortfolioChartProps) {
+export function PortfolioChart({ displayCurrency, dateRange, onDateRangeChange, selectedLabels: controlledLabels, onSelectedLabelsChange }: PortfolioChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [internalLabels, setInternalLabels] = useState<string[]>([]);
   const [allLabels, setAllLabels] = useState<Label[]>([]);
+
+  const isControlled = controlledLabels !== undefined;
+  const selectedLabels = isControlled ? controlledLabels : internalLabels;
+  const setSelectedLabels = isControlled
+    ? (v: string[] | ((prev: string[]) => string[])) => {
+        const next = typeof v === "function" ? v(controlledLabels) : v;
+        onSelectedLabelsChange?.(next);
+      }
+    : setInternalLabels;
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

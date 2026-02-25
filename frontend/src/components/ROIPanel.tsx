@@ -11,6 +11,7 @@ type Currency = "RON" | "EUR" | "USD";
 interface ROIPanelProps {
   displayCurrency: Currency;
   dateRange: DateRange;
+  selectedLabels?: string[];
 }
 
 function convertRon(valueRon: number | null, currency: Currency, fxRates: Record<string, number>): number | null {
@@ -41,7 +42,7 @@ function fmtAbsolute(value: number | null, currency: Currency): string {
   return `${sign}${value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
-export function ROIPanel({ displayCurrency, dateRange }: ROIPanelProps) {
+export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPanelProps) {
   const [data, setData] = useState<ROIResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -49,11 +50,11 @@ export function ROIPanel({ displayCurrency, dateRange }: ROIPanelProps) {
   useEffect(() => {
     setLoading(true);
     setLoadError(false);
-    getROI(dateRange)
+    getROI(dateRange, selectedLabels)
       .then((d) => { setData(d); setLoadError(false); })
       .catch(() => { toast.error("Failed to load ROI data"); setLoadError(true); })
       .finally(() => setLoading(false));
-  }, [dateRange]);
+  }, [dateRange, selectedLabels]);
 
   if (loading) {
     return (
