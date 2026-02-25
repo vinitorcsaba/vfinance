@@ -93,8 +93,8 @@ def get_chart_data(
                         # Fallback for old comma-separated format
                         item_labels = [name.strip() for name in item.labels.split(",") if name.strip()]
 
-                # Check if item has ALL requested labels (AND logic)
-                if all(label in item_labels for label in labels):
+                # Check if item has ANY of the requested labels (OR logic)
+                if any(label in item_labels for label in labels):
                     total_ron += item.value_ron
                     total_eur += item.value_eur
                     total_usd += item.value_usd
@@ -133,7 +133,7 @@ def get_roi(
                 item_labels = [l["name"] for l in parsed if isinstance(l, dict) and "name" in l]
             except json.JSONDecodeError:
                 item_labels = [n.strip() for n in item.labels.split(",") if n.strip()]
-        return all(lbl in item_labels for lbl in required)
+        return any(lbl in item_labels for lbl in required)
 
     # Compute cutoff date based on range
     cutoff_date = None
@@ -191,7 +191,7 @@ def get_roi(
     for tx, holding in tx_rows:
         if labels:
             holding_label_names = [l.name for l in holding.labels]
-            if not all(lbl in holding_label_names for lbl in labels):
+            if not any(lbl in holding_label_names for lbl in labels):
                 continue
         if tx.value_ron is not None:
             stock_cash_flows_ron += tx.value_ron
