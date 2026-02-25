@@ -102,7 +102,7 @@ export function SettingsPage() {
             RAM only and is cleared on server restart.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Status:</span>
             {localUser.encryption_enabled ? (
@@ -111,6 +111,16 @@ export function SettingsPage() {
               <Badge variant="secondary">Not Encrypted</Badge>
             )}
           </div>
+          {localUser.encryption_enabled && (
+            <div className="flex gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-300">
+              <span>⚠️</span>
+              <span>
+                Automatic monthly snapshots are <strong>not created</strong> for encrypted databases.
+                The scheduler cannot unlock your database without your Data Password.
+                Take snapshots manually while logged in.
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
