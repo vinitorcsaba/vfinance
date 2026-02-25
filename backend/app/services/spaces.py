@@ -67,6 +67,27 @@ def download_user_db(email: str) -> bool:
         return False
 
 
+def upload_user_db(email: str) -> bool:
+    """
+    Upload a user's database to Spaces using their email.
+    Returns True if uploaded, False if Spaces not configured or upload failed.
+    Intended for best-effort calls (e.g. after encryption state changes).
+    """
+    if not is_spaces_configured():
+        return False
+
+    from app.database import get_user_db_path
+    db_path = get_user_db_path(email)
+    object_key = os.path.basename(db_path)
+
+    try:
+        upload_db(db_path=db_path, object_key=object_key)
+        return True
+    except Exception:
+        logger.exception("Failed to upload user DB to Spaces for %s", email)
+        return False
+
+
 def upload_db(db_path: str, object_key: str) -> int:
     """Upload a database file to Spaces. Returns file size in bytes."""
     if not is_spaces_configured():

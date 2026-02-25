@@ -20,6 +20,7 @@ from app.database import (
     verify_db_key,
 )
 from app.dependencies.auth import get_user_email_from_token
+from app.services.spaces import upload_user_db
 
 router = APIRouter(prefix="/api/v1/encryption", tags=["encryption"])
 
@@ -124,6 +125,9 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
 
     # Store password in memory
     _db_keys[email] = body.password
+
+    # Upload the newly encrypted file to Spaces so the backup reflects the new state
+    upload_user_db(email)
 
     return {"message": "Database encrypted successfully"}
 
@@ -235,6 +239,9 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     _db_keys.pop(email, None)
     # Re-initialize engine pointing at the new plaintext file
     invalidate_user_engine(email)
+
+    # Upload the now-plaintext file to Spaces so the backup reflects the new state
+    upload_user_db(email)
 
     return {"message": "Encryption disabled"}
 
