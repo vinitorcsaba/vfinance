@@ -44,12 +44,21 @@ export interface ROIResponse {
   period_start: string | null;
   period_end: string | null;
   start_value_ron: number | null;
+  start_value_eur: number | null;
+  start_value_usd: number | null;
   end_value_ron: number | null;
+  end_value_eur: number | null;
+  end_value_usd: number | null;
   net_cash_flows_ron: number | null;
+  net_cash_flows_eur: number | null;
+  net_cash_flows_usd: number | null;
   stock_cash_flows_ron: number | null;
+  stock_cash_flows_eur: number | null;
+  stock_cash_flows_usd: number | null;
   absolute_gain_ron: number | null;
+  absolute_gain_eur: number | null;
+  absolute_gain_usd: number | null;
   roi_percent: number | null;
-  fx_rates: Record<string, number>;
   snapshot_count: number;
   range: string;
 }

@@ -14,12 +14,10 @@ interface ROIPanelProps {
   selectedLabels?: string[];
 }
 
-function convertRon(valueRon: number | null, currency: Currency, fxRates: Record<string, number>): number | null {
-  if (valueRon === null) return null;
-  if (currency === "RON") return valueRon;
-  const rate = fxRates[currency];
-  if (!rate) return null;
-  return valueRon / rate;
+/** Pick the correct pre-stored historical currency field from the ROI response. */
+function pick(data: ROIResponse, currency: Currency, ron: keyof ROIResponse, eur: keyof ROIResponse, usd: keyof ROIResponse): number | null {
+  const val = currency === "EUR" ? data[eur] : currency === "USD" ? data[usd] : data[ron];
+  return (val as number | null | undefined) ?? null;
 }
 
 function fmtDate(iso: string): string {
@@ -32,11 +30,10 @@ function fmtDate(iso: string): string {
 
 function fmtValue(value: number | null, currency: Currency): string {
   if (value === null) return "—";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  return `${value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
-function fmtAbsolute(value: number | null, currency: Currency): string {
+function fmtSigned(value: number | null, currency: Currency): string {
   if (value === null) return "—";
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
@@ -90,10 +87,10 @@ export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPane
       ? "text-green-600"
       : "text-red-600";
 
-  const startDisplay = convertRon(data.start_value_ron, displayCurrency, data.fx_rates);
-  const endDisplay = convertRon(data.end_value_ron, displayCurrency, data.fx_rates);
-  const gainDisplay = convertRon(data.absolute_gain_ron, displayCurrency, data.fx_rates);
-  const investedDisplay = convertRon(data.stock_cash_flows_ron ?? null, displayCurrency, data.fx_rates);
+  const startDisplay  = pick(data, displayCurrency, "start_value_ron",      "start_value_eur",      "start_value_usd");
+  const endDisplay    = pick(data, displayCurrency, "end_value_ron",        "end_value_eur",        "end_value_usd");
+  const gainDisplay   = pick(data, displayCurrency, "absolute_gain_ron",    "absolute_gain_eur",    "absolute_gain_usd");
+  const investedDisplay = pick(data, displayCurrency, "stock_cash_flows_ron", "stock_cash_flows_eur", "stock_cash_flows_usd");
 
   return (
     <div className="border rounded-md p-4 space-y-3">
@@ -126,7 +123,7 @@ export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPane
         <div className="bg-muted/40 rounded-md p-3 space-y-1">
           <p className="text-xs text-muted-foreground">Absolute Gain</p>
           <p className={`text-base font-semibold ${roiColor}`}>
-            {fmtAbsolute(gainDisplay, displayCurrency)}
+            {fmtSigned(gainDisplay, displayCurrency)}
           </p>
         </div>
 
@@ -150,7 +147,7 @@ export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPane
         <div className="bg-muted/40 rounded-md p-3 space-y-1">
           <p className="text-xs text-muted-foreground">Net Invested</p>
           <p className="text-base font-semibold">
-            {fmtValue(investedDisplay, displayCurrency)}
+            {fmtSigned(investedDisplay, displayCurrency)}
           </p>
         </div>
       </div>

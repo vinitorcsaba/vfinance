@@ -10,7 +10,6 @@ from app.models.snapshot import Snapshot
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.snapshot import ChartDataPoint, ChartDataResponse, ROIResponse, SnapshotRead, SnapshotSummary
-from app.services.portfolio import _fetch_fx_rates
 from app.services.sheets import export_snapshot_to_sheets
 from app.services.snapshot import create_snapshot
 
@@ -157,72 +156,105 @@ def get_roi(
     first_snap = snapshots[0]
     last_snap = snapshots[-1]
 
-    fx_rates = _fetch_fx_rates()
-
-    # --- Start / end portfolio values ---
+    # --- Start / end portfolio values (from snapshots — all historical) ---
     if not labels:
-        start_value = first_snap.total_value_ron
-        end_value = last_snap.total_value_ron
+        start_value_ron = first_snap.total_value_ron
+        start_value_eur = first_snap.total_value_eur
+        start_value_usd = first_snap.total_value_usd
+        end_value_ron = last_snap.total_value_ron
+        end_value_eur = last_snap.total_value_eur
+        end_value_usd = last_snap.total_value_usd
     else:
-        start_value = sum(item.value_ron for item in first_snap.items if item_matches_labels(item, labels))
-        end_value = sum(item.value_ron for item in last_snap.items if item_matches_labels(item, labels))
+        start_value_ron = sum(item.value_ron for item in first_snap.items if item_matches_labels(item, labels))
+        start_value_eur = sum(item.value_eur for item in first_snap.items if item_matches_labels(item, labels))
+        start_value_usd = sum(item.value_usd for item in first_snap.items if item_matches_labels(item, labels))
+        end_value_ron = sum(item.value_ron for item in last_snap.items if item_matches_labels(item, labels))
+        end_value_eur = sum(item.value_eur for item in last_snap.items if item_matches_labels(item, labels))
+        end_value_usd = sum(item.value_usd for item in last_snap.items if item_matches_labels(item, labels))
 
     # --- Stock cash flows ---
+    # Use > (strictly after) the first snapshot date so transactions already
+    # captured in start_value are not double-counted as new cash inflows.
     tx_rows = (
         db.query(Transaction, StockHolding)
         .join(StockHolding, Transaction.holding_id == StockHolding.id)
         .filter(
-            Transaction.date >= first_snap.taken_at.date(),
+            Transaction.date > first_snap.taken_at.date(),
             Transaction.date <= last_snap.taken_at.date(),
         )
         .all()
     )
 
-    stock_cash_flows = 0.0
+    stock_cash_flows_ron = 0.0
+    stock_cash_flows_eur = 0.0
+    stock_cash_flows_usd = 0.0
     for tx, holding in tx_rows:
         if labels:
             holding_label_names = [l.name for l in holding.labels]
             if not all(lbl in holding_label_names for lbl in labels):
                 continue
         if tx.value_ron is not None:
-            stock_cash_flows += tx.value_ron
+            stock_cash_flows_ron += tx.value_ron
+            stock_cash_flows_eur += tx.value_eur or 0.0
+            stock_cash_flows_usd += tx.value_usd or 0.0
         else:
-            # Legacy row: fall back to current FX rates
-            rate = fx_rates.get(holding.currency or "RON", 1.0)
-            stock_cash_flows += tx.shares * tx.price_per_share * rate
+            # Legacy row without stored values: skip (cannot determine historical rate)
+            pass
 
-    # --- Manual holding cash flows (snapshot deltas) ---
-    def manual_values_from_snap(snap) -> dict[str, float]:
-        """Extract {name: value_ron} for manual holdings in a snapshot, respecting label filter."""
+    # --- Manual holding cash flows (snapshot deltas — always historical) ---
+    def manual_values_from_snap(snap):
+        """Extract {name: (value_ron, value_eur, value_usd)} for manual holdings."""
         result = {}
         for item in snap.items:
             if item.holding_type == "manual" and item_matches_labels(item, labels):
-                result[item.name] = item.value_ron
+                result[item.name] = (item.value_ron, item.value_eur, item.value_usd)
         return result
 
     first_manual = manual_values_from_snap(first_snap)
     last_manual = manual_values_from_snap(last_snap)
     all_manual_names = set(first_manual) | set(last_manual)
-    manual_cash_flows = sum(
-        last_manual.get(name, 0.0) - first_manual.get(name, 0.0)
-        for name in all_manual_names
+
+    manual_cash_flows_ron = sum(
+        last_manual.get(n, (0.0, 0.0, 0.0))[0] - first_manual.get(n, (0.0, 0.0, 0.0))[0]
+        for n in all_manual_names
+    )
+    manual_cash_flows_eur = sum(
+        last_manual.get(n, (0.0, 0.0, 0.0))[1] - first_manual.get(n, (0.0, 0.0, 0.0))[1]
+        for n in all_manual_names
+    )
+    manual_cash_flows_usd = sum(
+        last_manual.get(n, (0.0, 0.0, 0.0))[2] - first_manual.get(n, (0.0, 0.0, 0.0))[2]
+        for n in all_manual_names
     )
 
-    net_cash_flows = round(stock_cash_flows + manual_cash_flows, 2)
+    net_cash_flows_ron = round(stock_cash_flows_ron + manual_cash_flows_ron, 2)
+    net_cash_flows_eur = round(stock_cash_flows_eur + manual_cash_flows_eur, 2)
+    net_cash_flows_usd = round(stock_cash_flows_usd + manual_cash_flows_usd, 2)
 
-    absolute_gain = round(end_value - start_value - net_cash_flows, 2)
-    roi_percent = round(absolute_gain / start_value * 100, 4) if start_value != 0 else None
+    absolute_gain_ron = round(end_value_ron - start_value_ron - net_cash_flows_ron, 2)
+    absolute_gain_eur = round(end_value_eur - start_value_eur - net_cash_flows_eur, 2)
+    absolute_gain_usd = round(end_value_usd - start_value_usd - net_cash_flows_usd, 2)
+    roi_percent = round(absolute_gain_ron / start_value_ron * 100, 4) if start_value_ron != 0 else None
 
     return ROIResponse(
         period_start=first_snap.taken_at,
         period_end=last_snap.taken_at,
-        start_value_ron=round(start_value, 2),
-        end_value_ron=round(end_value, 2),
-        net_cash_flows_ron=net_cash_flows,
-        stock_cash_flows_ron=round(stock_cash_flows, 2),
-        absolute_gain_ron=absolute_gain,
+        start_value_ron=round(start_value_ron, 2),
+        start_value_eur=round(start_value_eur, 2),
+        start_value_usd=round(start_value_usd, 2),
+        end_value_ron=round(end_value_ron, 2),
+        end_value_eur=round(end_value_eur, 2),
+        end_value_usd=round(end_value_usd, 2),
+        net_cash_flows_ron=net_cash_flows_ron,
+        net_cash_flows_eur=net_cash_flows_eur,
+        net_cash_flows_usd=net_cash_flows_usd,
+        stock_cash_flows_ron=round(stock_cash_flows_ron, 2),
+        stock_cash_flows_eur=round(stock_cash_flows_eur, 2),
+        stock_cash_flows_usd=round(stock_cash_flows_usd, 2),
+        absolute_gain_ron=absolute_gain_ron,
+        absolute_gain_eur=absolute_gain_eur,
+        absolute_gain_usd=absolute_gain_usd,
         roi_percent=roi_percent,
-        fx_rates=fx_rates,
         snapshot_count=len(snapshots),
         range=range,
     )

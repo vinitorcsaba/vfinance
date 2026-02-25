@@ -74,13 +74,25 @@ class ROIResponse(BaseModel):
     """Response for ROI calculation endpoint."""
     period_start: Optional[datetime] = None
     period_end: Optional[datetime] = None
+    # RON values (primary calculation currency)
     start_value_ron: Optional[float] = None
     end_value_ron: Optional[float] = None
     net_cash_flows_ron: Optional[float] = None
     stock_cash_flows_ron: Optional[float] = None
     absolute_gain_ron: Optional[float] = None
+    # EUR values (historical, from snapshots)
+    start_value_eur: Optional[float] = None
+    end_value_eur: Optional[float] = None
+    net_cash_flows_eur: Optional[float] = None
+    stock_cash_flows_eur: Optional[float] = None
+    absolute_gain_eur: Optional[float] = None
+    # USD values (historical, from snapshots)
+    start_value_usd: Optional[float] = None
+    end_value_usd: Optional[float] = None
+    net_cash_flows_usd: Optional[float] = None
+    stock_cash_flows_usd: Optional[float] = None
+    absolute_gain_usd: Optional[float] = None
     roi_percent: Optional[float] = None
-    fx_rates: dict[str, float] = {}
     snapshot_count: int = 0
     range: str = "all"
 
