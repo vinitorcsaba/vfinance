@@ -184,31 +184,63 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     if not verify_db_key(db_path, body.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    invalidate_user_engine(email)
-
-    # Decrypt via sqlcipher_export to a new plaintext file:
-    # Open encrypted source with the correct password, then ATTACH a new empty file
-    # with KEY "x''" (empty raw bytes = SQLCipher plaintext passthrough mode).
-    # sqlcipher_export copies all data without encryption into the destination.
+    # Decrypt via iterdump → fresh stdlib sqlite3 DB (mirror of the setup flow):
+    # - Read source with sqlcipher3 using the correct password
+    # - Write destination with stdlib sqlite3 (always plaintext, no cipher)
+    # This avoids the sqlcipher_export + KEY "x''" approach which fails on SQLCipher v4.
     import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".plain_tmp"
+    src = None
     try:
-        conn = sqlcipher.connect(db_path)
-        conn.execute(f"PRAGMA key = '{escaped}'")
-        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY \"x''\"")
-        conn.execute("SELECT sqlcipher_export('plaintext')")
-        conn.execute("DETACH DATABASE plaintext")
-        conn.close()
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+        # Read encrypted source — isolation_level=None (autocommit) so PRAGMA key
+        # is the first thing executed with no implicit BEGIN wrapping it
+        src = sqlcipher.connect(db_path)
+        src.isolation_level = None
+        src.execute(f"PRAGMA key = '{escaped}'")
+        sql_dump = "\n".join(src.iterdump())
+        src.close()
+        src = None
+
+        # Write to a new plaintext sqlite3 file
+        import sqlite3 as _sqlite3
+        plain = _sqlite3.connect(tmp_path)
+        plain.executescript(sql_dump)
+        plain.close()
     except Exception as e:
+        if src is not None:
+            try:
+                src.close()
+            except Exception:
+                pass
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise HTTPException(status_code=500, detail=f"Failed to decrypt database: {e}")
 
+    # Verify the output is actually plaintext before replacing
+    if is_db_encrypted(tmp_path):
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise HTTPException(status_code=500, detail="Decryption failed: output file is still encrypted")
+
+    # Close all connections to the old encrypted file before replacing it
+    invalidate_user_engine(email)
+
+    # Remove stale WAL/SHM files from the encrypted DB
+    for suffix in ["-wal", "-shm"]:
+        stale = db_path + suffix
+        if os.path.exists(stale):
+            os.remove(stale)
+
     os.replace(tmp_path, db_path)
 
     _db_keys.pop(email, None)
+    # Re-initialize engine pointing at the new plaintext file
+    invalidate_user_engine(email)
 
     return {"message": "Encryption disabled"}
 
