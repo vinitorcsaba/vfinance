@@ -179,6 +179,17 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      if (showResults && highlightIndex >= 0) {
+        e.preventDefault();
+        selectResult(searchResults[highlightIndex]);
+      } else if (!showResults || highlightIndex < 0) {
+        e.preventDefault();
+        handleSearch();
+      }
+      return;
+    }
+
     if (!showResults || searchResults.length === 0) return;
 
     if (e.key === "ArrowDown") {
@@ -187,9 +198,6 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
-    } else if (e.key === "Enter" && highlightIndex >= 0) {
-      e.preventDefault();
-      selectResult(searchResults[highlightIndex]);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setShowResults(false);
