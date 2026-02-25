@@ -46,6 +46,7 @@ export interface ROIResponse {
   start_value_ron: number | null;
   end_value_ron: number | null;
   net_cash_flows_ron: number | null;
+  stock_cash_flows_ron: number | null;
   absolute_gain_ron: number | null;
   roi_percent: number | null;
   fx_rates: Record<string, number>;

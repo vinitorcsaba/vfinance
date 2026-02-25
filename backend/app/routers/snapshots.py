@@ -219,6 +219,7 @@ def get_roi(
         start_value_ron=round(start_value, 2),
         end_value_ron=round(end_value, 2),
         net_cash_flows_ron=net_cash_flows,
+        stock_cash_flows_ron=round(stock_cash_flows, 2),
         absolute_gain_ron=absolute_gain,
         roi_percent=roi_percent,
         fx_rates=fx_rates,

@@ -77,6 +77,7 @@ class ROIResponse(BaseModel):
     start_value_ron: Optional[float] = None
     end_value_ron: Optional[float] = None
     net_cash_flows_ron: Optional[float] = None
+    stock_cash_flows_ron: Optional[float] = None
     absolute_gain_ron: Optional[float] = None
     roi_percent: Optional[float] = None
     fx_rates: dict[str, float] = {}

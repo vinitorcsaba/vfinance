@@ -93,6 +93,7 @@ export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPane
   const startDisplay = convertRon(data.start_value_ron, displayCurrency, data.fx_rates);
   const endDisplay = convertRon(data.end_value_ron, displayCurrency, data.fx_rates);
   const gainDisplay = convertRon(data.absolute_gain_ron, displayCurrency, data.fx_rates);
+  const investedDisplay = convertRon(data.stock_cash_flows_ron ?? null, displayCurrency, data.fx_rates);
 
   return (
     <div className="border rounded-md p-4 space-y-3">
@@ -112,7 +113,7 @@ export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPane
       </div>
 
       {/* Metrics grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {/* ROI % */}
         <div className="bg-muted/40 rounded-md p-3 space-y-1">
           <p className="text-xs text-muted-foreground">ROI</p>
@@ -142,6 +143,14 @@ export function ROIPanel({ displayCurrency, dateRange, selectedLabels }: ROIPane
           <p className="text-xs text-muted-foreground">End Value</p>
           <p className="text-base font-semibold">
             {fmtValue(endDisplay, displayCurrency)}
+          </p>
+        </div>
+
+        {/* Net Invested */}
+        <div className="bg-muted/40 rounded-md p-3 space-y-1">
+          <p className="text-xs text-muted-foreground">Net Invested</p>
+          <p className="text-base font-semibold">
+            {fmtValue(investedDisplay, displayCurrency)}
           </p>
         </div>
       </div>
