@@ -98,8 +98,8 @@ export function SettingsPage() {
         <CardHeader>
           <CardTitle>Database Encryption</CardTitle>
           <CardDescription>
-            Protect your portfolio data with a separate Data Password. The key is held in server
-            RAM only and is cleared on server restart.
+            Protect your portfolio data with a separate Data Password.<br/> 
+            The key is held in server RAM only during your session.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -115,7 +115,7 @@ export function SettingsPage() {
             <div className="flex gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-300">
               <span>⚠️</span>
               <span>
-                Automatic monthly snapshots are <strong>not created</strong> for encrypted databases.
+                Automatic monthly snapshots are <strong>not created</strong> for encrypted databases.<br/>
                 The scheduler cannot unlock your database without your Data Password.
                 Take snapshots manually while logged in.
               </span>
