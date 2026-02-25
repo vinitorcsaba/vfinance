@@ -184,37 +184,31 @@ def disable_encryption(body: DisableRequest, email: str = Depends(get_user_email
     if not verify_db_key(db_path, body.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
-    # Decrypt via iterdump → fresh stdlib sqlite3 DB (mirror of the setup flow):
-    # - Read source with sqlcipher3 using the correct password
-    # - Write destination with stdlib sqlite3 (always plaintext, no cipher)
-    # This avoids the sqlcipher_export + KEY "x''" approach which fails on SQLCipher v4.
+    # Decrypt via sqlcipher_export to a new plaintext file.
+    # KEY '' (empty string passphrase) tells SQLCipher to create the attached
+    # database without encryption — this is the documented SQLCipher approach.
+    # (KEY "x''" was wrong: empty raw bytes is invalid and causes "cannot decrypt".)
     import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
     tmp_path = db_path + ".plain_tmp"
-    src = None
+    conn = None
     try:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-        # Read encrypted source — isolation_level=None (autocommit) so PRAGMA key
-        # is the first thing executed with no implicit BEGIN wrapping it
-        src = sqlcipher.connect(db_path)
-        src.isolation_level = None
-        src.execute(f"PRAGMA key = '{escaped}'")
-        sql_dump = "\n".join(src.iterdump())
-        src.close()
-        src = None
-
-        # Write to a new plaintext sqlite3 file
-        import sqlite3 as _sqlite3
-        plain = _sqlite3.connect(tmp_path)
-        plain.executescript(sql_dump)
-        plain.close()
+        conn = sqlcipher.connect(db_path)
+        conn.isolation_level = None  # autocommit — PRAGMA key must not be in a transaction
+        conn.execute(f"PRAGMA key = '{escaped}'")
+        conn.execute(f"ATTACH DATABASE '{tmp_path}' AS plaintext KEY ''")
+        conn.execute("SELECT sqlcipher_export('plaintext')")
+        conn.execute("DETACH DATABASE plaintext")
+        conn.close()
+        conn = None
     except Exception as e:
-        if src is not None:
+        if conn is not None:
             try:
-                src.close()
+                conn.close()
             except Exception:
                 pass
         if os.path.exists(tmp_path):
