@@ -71,13 +71,11 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
     except Exception:
         pass
 
-    # Encrypt using SQLite backup API:
-    # 1. Open source with sqlcipher3 in x'' passthrough mode (reads plaintext pages as-is)
-    # 2. Open an empty destination with a fresh text-password key (no x'' / raw-key mode)
-    # 3. src.backup(dst) copies pages at the C level; destination encrypts each page with
-    #    its own key — no cipher-settings inheritance possible (backup API is not ATTACH)
-    # 4. verify_db_key confirms the output is openable with the stored password
-    # 5. Remove stale WAL/SHM files from the old plaintext DB before replacing
+    # Encrypt via iterdump → fresh SQLCipher DB:
+    # - Read source with stdlib sqlite3 (no cipher module, no HMAC issues)
+    # - Create destination with sqlcipher3 using isolation_level=None so Python
+    #   never wraps PRAGMA key in an implicit transaction before it is processed
+    # - executescript() runs the SQL dump inside the already-keyed connection
     import sqlcipher3.dbapi2 as sqlcipher
 
     escaped = body.password.replace("'", "''")
@@ -86,15 +84,18 @@ def setup_encryption(body: SetupRequest, email: str = Depends(get_user_email_fro
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-        src = sqlcipher.connect(db_path)
-        src.execute("PRAGMA key = \"x''\"")  # plaintext passthrough — read source as-is
-
-        dst = sqlcipher.connect(tmp_path)
-        dst.execute(f"PRAGMA key = '{escaped}'")  # standard text-password KDF for destination
-
-        src.backup(dst)  # page-level copy: src pages → encrypted dst pages
+        # Read plaintext source with stdlib sqlite3 — avoids any cipher interaction
+        src = sqlite3.connect(db_path)
+        sql_dump = "\n".join(src.iterdump())
         src.close()
-        dst.close()
+
+        # isolation_level=None (autocommit) ensures PRAGMA key is the very first
+        # thing executed with no implicit BEGIN wrapping it
+        enc = sqlcipher.connect(tmp_path)
+        enc.isolation_level = None
+        enc.execute(f"PRAGMA key = '{escaped}'")
+        enc.executescript(sql_dump)
+        enc.close()
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
