@@ -130,7 +130,14 @@ export function HoldingsPage() {
   }, [fetchAll]);
 
   // Stock CRUD
-  async function handleStockSubmit(data: { ticker: string; shares: number; currency?: Currency | null; display_name?: string }) {
+  async function handleStockSubmit(data: {
+    ticker: string;
+    shares: number;
+    currency?: Currency | null;
+    display_name?: string;
+    transaction_date?: string;
+    transaction_price?: number;
+  }) {
     if (editingStock) {
       await updateStockHolding(editingStock.id, data);
     } else {
@@ -230,6 +237,19 @@ export function HoldingsPage() {
           return newSet;
         });
       }
+    }
+  }
+
+  async function refreshStockTransactions(stockId: number) {
+    try {
+      const transactions = await listTransactions(stockId);
+      setExpandedStocks((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(stockId, transactions);
+        return newMap;
+      });
+    } catch {
+      toast.error("Failed to refresh transactions");
     }
   }
 
@@ -459,7 +479,9 @@ export function HoldingsPage() {
                           <h4 className="text-sm font-medium mb-3">Transaction History</h4>
                           <TransactionHistory
                             transactions={transactions}
-                            onTransactionDeleted={() => toggleStockExpanded(stock.id)}
+                            ticker={stock.ticker}
+                            onTransactionDeleted={() => refreshStockTransactions(stock.id)}
+                            onTransactionUpdated={() => refreshStockTransactions(stock.id)}
                           />
                         </div>
                       </TableCell>
@@ -592,7 +614,9 @@ export function HoldingsPage() {
                       <div className="border-t pt-3 -mx-4 px-4 -mb-3 pb-3 bg-muted/30">
                         <TransactionHistory
                           transactions={transactions}
-                          onTransactionDeleted={() => toggleStockExpanded(stock.id)}
+                          ticker={stock.ticker}
+                          onTransactionDeleted={() => refreshStockTransactions(stock.id)}
+                          onTransactionUpdated={() => refreshStockTransactions(stock.id)}
                         />
                       </div>
                     )}

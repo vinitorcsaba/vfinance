@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -13,3 +15,10 @@ class StockSearchResult(BaseModel):
     name: str
     exchange: str
     type: str
+
+
+class HistoricalPriceResponse(BaseModel):
+    ticker: str
+    date: date
+    price: float | None
+    currency: str | None = None

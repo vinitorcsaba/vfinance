@@ -18,6 +18,8 @@ export interface StockHoldingCreate {
   shares: number;
   currency?: Currency | null;
   display_name?: string | null;
+  transaction_date?: string; // ISO date YYYY-MM-DD
+  transaction_price?: number;
 }
 
 export interface StockHoldingUpdate {

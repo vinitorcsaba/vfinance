@@ -1,4 +1,4 @@
-import type { TransactionCreate, TransactionRead } from "@/types/transaction";
+import type { TransactionCreate, TransactionRead, TransactionUpdate } from "@/types/transaction";
 
 const BASE = "/api/v1";
 
@@ -21,6 +21,22 @@ export async function createTransaction(
 export async function listTransactions(holdingId: number): Promise<TransactionRead[]> {
   const res = await fetch(`${BASE}/holdings/stocks/${holdingId}/transactions`);
   if (!res.ok) throw new Error("Failed to fetch transactions");
+  return res.json();
+}
+
+export async function updateTransaction(
+  transactionId: number,
+  data: TransactionUpdate
+): Promise<TransactionRead> {
+  const res = await fetch(`${BASE}/holdings/transactions/${transactionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Failed to update transaction");
+  }
   return res.json();
 }
 

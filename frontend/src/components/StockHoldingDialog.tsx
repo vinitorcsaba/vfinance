@@ -19,9 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { lookupTicker, searchStocks } from "@/api/holdings";
+import { fetchHistoricalPrice } from "@/api/prices";
 import type { Currency, StockHolding, StockSearchResult, PriceLookupResponse } from "@/types/holdings";
 
 const CURRENCIES: Currency[] = ["RON", "EUR", "USD"];
+
+function today(): string {
+  return new Date().toISOString().split("T")[0];
+}
 
 function looksLikeTicker(value: string): boolean {
   return /^[A-Z0-9^.]+$/.test(value);
@@ -30,7 +35,14 @@ function looksLikeTicker(value: string): boolean {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { ticker: string; shares: number; currency?: Currency | null; display_name?: string }) => Promise<void>;
+  onSubmit: (data: {
+    ticker: string;
+    shares: number;
+    currency?: Currency | null;
+    display_name?: string;
+    transaction_date?: string;
+    transaction_price?: number;
+  }) => Promise<void>;
   editing?: StockHolding | null;
 }
 
@@ -45,6 +57,11 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Initial transaction fields (only shown when adding, not editing)
+  const [txnDate, setTxnDate] = useState(today());
+  const [txnPrice, setTxnPrice] = useState("");
+  const [fetchingHistorical, setFetchingHistorical] = useState(false);
+
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -52,6 +69,8 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Debounce timer for historical price fetch on date change
+  const dateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -69,6 +88,8 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
         setDisplayName("");
         setTickerInfo(null);
         setTickerError("");
+        setTxnDate(today());
+        setTxnPrice("");
       }
       setError("");
       setSearchResults([]);
@@ -84,25 +105,48 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
     try {
       const result = await lookupTicker(tickerValue);
       setTickerInfo(result);
-      // Always update currency and display name when looking up a new ticker
       if (result.currency) {
         setCurrency(result.currency as Currency);
       }
       if (result.name) {
         setDisplayName(result.name);
       }
+      // Auto-fill current price into the transaction price field (if not editing)
+      if (!editing) {
+        setTxnPrice(result.price.toString());
+      }
     } catch (err) {
       setTickerError(err instanceof Error ? err.message : "Invalid ticker");
     } finally {
       setValidating(false);
     }
-  }, []);
+  }, [editing]);
+
+  // When txnDate changes and we have a ticker, debounce-fetch the historical price
+  function handleTxnDateChange(newDate: string) {
+    setTxnDate(newDate);
+    if (!ticker.trim()) return;
+
+    if (dateDebounceRef.current) clearTimeout(dateDebounceRef.current);
+    dateDebounceRef.current = setTimeout(async () => {
+      setFetchingHistorical(true);
+      try {
+        const result = await fetchHistoricalPrice(ticker.trim().toUpperCase(), newDate);
+        if (result.price !== null) {
+          setTxnPrice(result.price.toString());
+        }
+      } catch {
+        // Silently fail — user can type a price manually
+      } finally {
+        setFetchingHistorical(false);
+      }
+    }, 500);
+  }
 
   async function handleSearch() {
     const query = ticker.trim();
     if (!query || query.length < 2) return;
 
-    // If it looks like an exact ticker, go straight to lookup
     if (looksLikeTicker(query)) {
       setShowResults(false);
       setSearchResults([]);
@@ -110,7 +154,6 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
       return;
     }
 
-    // Otherwise, search by name
     setSearching(true);
     setTickerError("");
     setTickerInfo(null);
@@ -166,6 +209,10 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
         shares: Number(shares),
         currency: currency ?? undefined,
         display_name: displayName.trim() || undefined,
+        ...(!editing && {
+          transaction_date: txnDate || undefined,
+          transaction_price: txnPrice && Number(txnPrice) > 0 ? Number(txnPrice) : undefined,
+        }),
       });
       onOpenChange(false);
     } catch (err) {
@@ -288,6 +335,45 @@ export function StockHoldingDialog({ open, onOpenChange, onSubmit, editing }: Pr
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
+
+          {/* Initial transaction fields — only shown when adding a new holding */}
+          {!editing && (
+            <div className="grid gap-3 rounded-md border p-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Initial Transaction</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="txn-date">Purchase Date</Label>
+                  <Input
+                    id="txn-date"
+                    type="date"
+                    value={txnDate}
+                    max={today()}
+                    onChange={(e) => handleTxnDateChange(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="txn-price">
+                    Price / Share
+                    {fetchingHistorical && (
+                      <Loader2Icon className="inline ml-1 h-3 w-3 animate-spin" />
+                    )}
+                  </Label>
+                  <Input
+                    id="txn-price"
+                    type="number"
+                    step="any"
+                    min="0.0001"
+                    placeholder="Auto from lookup"
+                    value={txnPrice}
+                    onChange={(e) => setTxnPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Currency values will reflect rates on the chosen date.
+              </p>
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

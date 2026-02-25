@@ -1,6 +1,7 @@
 import time
 import logging
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 import yfinance as yf
 
@@ -151,6 +152,45 @@ def search_stocks(query: str, max_results: int = 8) -> list[dict]:
     except Exception:
         logger.warning("Stock search failed for query '%s'", query, exc_info=True)
         return []
+
+
+def fetch_historical_price(ticker: str, trade_date: date) -> float | None:
+    """Fetch the closing price for a ticker on a specific date.
+
+    Returns None if no data is available for that date (e.g. market was closed).
+    Looks forward up to 5 business days to handle weekends/holidays.
+    """
+    try:
+        ticker = normalize_ticker(ticker)
+        start = trade_date
+        end = trade_date + timedelta(days=7)
+        hist = yf.Ticker(ticker).history(start=start.isoformat(), end=end.isoformat())
+        if hist.empty:
+            return None
+        return round(float(hist["Close"].iloc[0]), 4)
+    except Exception:
+        logger.warning("Failed to fetch historical price for %s on %s", ticker, trade_date, exc_info=True)
+        return None
+
+
+def fetch_historical_fx_rates(trade_date: date) -> dict[str, float]:
+    """Fetch EUR/USD to RON exchange rates for a specific date.
+
+    Returns {"RON": 1.0, "EUR": <rate>, "USD": <rate>}.
+    Extends the window by a few days to handle weekends/holidays.
+    Falls back to hardcoded rates if data is unavailable.
+    """
+    rates: dict[str, float] = {"RON": 1.0, "EUR": 5.0, "USD": 4.5}
+    for currency, pair in [("EUR", "EURRON=X"), ("USD", "USDRON=X")]:
+        try:
+            start = trade_date
+            end = trade_date + timedelta(days=5)
+            hist = yf.Ticker(pair).history(start=start.isoformat(), end=end.isoformat())
+            if not hist.empty:
+                rates[currency] = round(float(hist["Close"].iloc[0]), 4)
+        except Exception:
+            logger.warning("Failed to fetch historical FX rate for %s on %s", pair, trade_date, exc_info=True)
+    return rates
 
 
 def fetch_batch_prices(tickers: list[str]) -> dict[str, PriceResult]:

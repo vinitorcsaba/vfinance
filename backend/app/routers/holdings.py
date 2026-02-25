@@ -1,3 +1,5 @@
+import datetime as dt
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,7 +8,7 @@ from app.dependencies.auth import get_current_user
 from app.models.holding import ManualHolding, StockHolding
 from app.models.transaction import Transaction
 from app.services.portfolio import _fetch_fx_rates
-from app.services.price import lookup_ticker, normalize_ticker
+from app.services.price import fetch_historical_fx_rates, fetch_historical_price, lookup_ticker, normalize_ticker
 from app.schemas.holding import (
     ManualAddValue,
     ManualHoldingCreate,
@@ -17,7 +19,7 @@ from app.schemas.holding import (
     StockHoldingRead,
     StockHoldingUpdate,
 )
-from app.schemas.transaction import TransactionCreate, TransactionRead
+from app.schemas.transaction import TransactionCreate, TransactionRead, TransactionUpdate
 
 router = APIRouter(prefix="/api/v1/holdings", tags=["holdings"], dependencies=[Depends(get_current_user)])
 
@@ -36,14 +38,17 @@ def create_stock(body: StockHoldingCreate, db: Session = Depends(get_user_db)):
     existing = db.query(StockHolding).filter(StockHolding.ticker == normalized).first()
     if existing:
         raise HTTPException(status_code=409, detail=f"Stock with ticker '{normalized}' already exists")
+
+    # Resolve currency and capture live price for the initial transaction
+    live_price: float | None = None
     if body.currency is not None:
         currency = body.currency.value
     else:
-        # Auto-populate currency from yfinance
         currency = None
         try:
             price_info = lookup_ticker(normalized)
             currency = price_info.currency
+            live_price = price_info.price
         except ValueError:
             pass
 
@@ -56,6 +61,47 @@ def create_stock(body: StockHoldingCreate, db: Session = Depends(get_user_db)):
     db.add(stock)
     db.commit()
     db.refresh(stock)
+
+    # --- Auto-create initial transaction ---
+    txn_date = body.transaction_date or dt.date.today()
+    txn_price = body.transaction_price
+
+    if txn_price is None:
+        # Try historical price first (if user specified a past date); otherwise use live price
+        if body.transaction_date is not None and body.transaction_date < dt.date.today():
+            txn_price = fetch_historical_price(normalized, txn_date)
+        if txn_price is None:
+            # Fall back to live price already fetched (or fetch now if we skipped above)
+            if live_price is None:
+                try:
+                    live_price = lookup_ticker(normalized).price
+                except ValueError:
+                    pass
+            txn_price = live_price
+
+    if txn_price is not None:
+        # Use historical FX rates for the transaction date
+        if txn_date < dt.date.today():
+            fx = fetch_historical_fx_rates(txn_date)
+        else:
+            fx = _fetch_fx_rates()
+        stock_currency = currency or "RON"
+        rate = fx.get(stock_currency, 1.0)
+        value_native = body.shares * txn_price
+        value_ron = round(value_native * rate, 2)
+
+        transaction = Transaction(
+            holding_id=stock.id,
+            date=txn_date,
+            shares=body.shares,
+            price_per_share=txn_price,
+            value_ron=value_ron,
+            value_eur=round(value_ron / fx.get("EUR", 5.0), 2),
+            value_usd=round(value_ron / fx.get("USD", 4.5), 2),
+        )
+        db.add(transaction)
+        db.commit()
+
     return stock
 
 
@@ -154,6 +200,46 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_user_db)):
 
     db.delete(transaction)
     db.commit()
+
+
+@router.put("/transactions/{transaction_id}", response_model=TransactionRead)
+def update_transaction(transaction_id: int, body: TransactionUpdate, db: Session = Depends(get_user_db)):
+    """Update a transaction's date, price per share, or notes.
+
+    When the date or price changes, value_ron/eur/usd are recalculated using
+    FX rates at the (new) transaction date for accuracy.
+    """
+    transaction = db.get(Transaction, transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    stock = db.get(StockHolding, transaction.holding_id)
+
+    if body.date is not None:
+        transaction.date = body.date
+    if body.price_per_share is not None:
+        transaction.price_per_share = body.price_per_share
+    if body.notes is not None:
+        transaction.notes = body.notes
+
+    # Recalculate multi-currency values whenever date or price changed
+    if body.date is not None or body.price_per_share is not None:
+        txn_date = transaction.date
+        if txn_date < dt.date.today():
+            fx = fetch_historical_fx_rates(txn_date)
+        else:
+            fx = _fetch_fx_rates()
+        stock_currency = (stock.currency if stock else None) or "RON"
+        rate = fx.get(stock_currency, 1.0)
+        value_native = transaction.shares * transaction.price_per_share
+        value_ron = round(value_native * rate, 2)
+        transaction.value_ron = value_ron
+        transaction.value_eur = round(value_ron / fx.get("EUR", 5.0), 2)
+        transaction.value_usd = round(value_ron / fx.get("USD", 4.5), 2)
+
+    db.commit()
+    db.refresh(transaction)
+    return transaction
 
 
 # --- Manual Holdings ---

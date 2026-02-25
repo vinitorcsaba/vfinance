@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -20,6 +20,9 @@ class StockHoldingCreate(BaseModel):
     shares: float = Field(..., gt=0)
     currency: Currency | None = None
     display_name: str | None = Field(None, max_length=100)
+    # Optional initial transaction fields (default: today's date + current live price)
+    transaction_date: date | None = None
+    transaction_price: float | None = Field(None, gt=0)
 
 
 class StockHoldingUpdate(BaseModel):
