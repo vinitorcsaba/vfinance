@@ -173,6 +173,28 @@ def fetch_historical_price(ticker: str, trade_date: date) -> float | None:
         return None
 
 
+def fetch_benchmark_prices(ticker: str, period_start: date | None, period_end: date) -> list[dict]:
+    """Fetch historical daily closing prices for a ticker, used for benchmark comparison on the chart."""
+    try:
+        ticker = normalize_ticker(ticker)
+        hist = yf.Ticker(ticker).history(
+            start=period_start.isoformat() if period_start else None,
+            end=period_end.isoformat(),
+        )
+        if hist.empty:
+            return []
+        points = []
+        for dt, row in hist.iterrows():
+            points.append({
+                "date": dt.date().isoformat(),
+                "price": round(float(row["Close"]), 4),
+            })
+        return points
+    except Exception:
+        logger.warning("Failed to fetch benchmark data for %s", ticker, exc_info=True)
+        return []
+
+
 def fetch_historical_fx_rates(trade_date: date) -> dict[str, float]:
     """Fetch EUR/USD to RON exchange rates for a specific date.
 

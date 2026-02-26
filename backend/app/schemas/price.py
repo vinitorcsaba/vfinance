@@ -22,3 +22,14 @@ class HistoricalPriceResponse(BaseModel):
     date: date
     price: float | None
     currency: str | None = None
+
+
+class BenchmarkPoint(BaseModel):
+    date: str
+    price: float
+
+
+class BenchmarkResponse(BaseModel):
+    ticker: str
+    currency: str | None = None
+    points: list[BenchmarkPoint]

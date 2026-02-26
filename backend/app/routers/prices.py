@@ -3,8 +3,8 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.dependencies.auth import get_current_user
-from app.schemas.price import HistoricalPriceResponse, PriceLookupResponse, StockSearchResult
-from app.services.price import fetch_historical_price, lookup_ticker, normalize_ticker, search_stocks
+from app.schemas.price import BenchmarkResponse, HistoricalPriceResponse, PriceLookupResponse, StockSearchResult
+from app.services.price import fetch_benchmark_prices, fetch_historical_price, lookup_ticker, normalize_ticker, search_stocks
 
 router = APIRouter(prefix="/api/v1/prices", tags=["prices"], dependencies=[Depends(get_current_user)])
 
@@ -52,3 +52,29 @@ def price_history(
 def price_search(q: str = Query(..., min_length=2, description="Search query")):
     """Search Yahoo Finance for stocks/ETFs matching a name or keyword."""
     return search_stocks(q)
+
+
+@router.get("/benchmark", response_model=BenchmarkResponse)
+def price_benchmark(
+    ticker: str = Query(..., min_length=1, description="Ticker symbol for benchmark comparison"),
+    range: str = Query(default="all", pattern="^(3m|6m|1y|all)$"),
+):
+    """Get historical daily closing prices for a ticker to use as chart benchmark."""
+    range_days = {"3m": 90, "6m": 180, "1y": 365, "all": None}
+    days = range_days[range]
+
+    normalized = normalize_ticker(ticker)
+    today = datetime.date.today()
+    period_start = (today - datetime.timedelta(days=days)) if days else None
+
+    points = fetch_benchmark_prices(normalized, period_start, today)
+    if not points:
+        raise HTTPException(status_code=404, detail=f"No price data found for '{ticker}'")
+
+    currency: str | None = None
+    try:
+        currency = lookup_ticker(normalized).currency
+    except ValueError:
+        pass
+
+    return BenchmarkResponse(ticker=normalized, currency=currency, points=points)
