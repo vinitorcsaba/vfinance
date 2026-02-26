@@ -177,10 +177,14 @@ def fetch_benchmark_prices(ticker: str, period_start: date | None, period_end: d
     """Fetch historical daily closing prices for a ticker, used for benchmark comparison on the chart."""
     try:
         ticker = normalize_ticker(ticker)
-        hist = yf.Ticker(ticker).history(
-            start=period_start.isoformat() if period_start else None,
-            end=period_end.isoformat(),
-        )
+        if period_start is None:
+            # yfinance defaults to 1 month when start=None — use period="max" instead
+            hist = yf.Ticker(ticker).history(period="max")
+        else:
+            hist = yf.Ticker(ticker).history(
+                start=period_start.isoformat(),
+                end=period_end.isoformat(),
+            )
         if hist.empty:
             return []
         points = []

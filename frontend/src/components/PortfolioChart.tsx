@@ -229,6 +229,12 @@ export function PortfolioChart({
 
   const hasBenchmark = benchmarkTicker !== null && benchmarkPoints.length > 0;
 
+  // Pre-compute portfolio absolute values in display currency
+  const portfolioValues = chartData.map((pt) =>
+    displayCurrency === "EUR" ? pt.total_eur : displayCurrency === "USD" ? pt.total_usd : pt.total_ron
+  );
+  const firstPortfolioValue = portfolioValues[0] ?? 0;
+
   // Find first benchmark price aligned to first snapshot date (for % normalization)
   const firstBenchPrice =
     hasBenchmark && chartData.length > 0
@@ -236,24 +242,21 @@ export function PortfolioChart({
       : undefined;
 
   // Build merged chart data
-  const mergedData = chartData.map((point) => {
+  const mergedData = chartData.map((point, i) => {
     const dateLabel = new Date(point.date).toLocaleDateString("en-GB", {
       month: "short",
       year: "numeric",
     });
 
     if (!hasBenchmark) {
-      const value =
-        displayCurrency === "EUR"
-          ? point.total_eur
-          : displayCurrency === "USD"
-          ? point.total_usd
-          : point.total_ron;
-      return { date: dateLabel, portfolio: value };
+      return { date: dateLabel, portfolio: portfolioValues[i] };
     }
 
-    // Benchmark active: portfolio uses cash-flow-adjusted ROI, benchmark uses simple % change
-    const portfolioPct = point.roi_percent ?? 0;
+    // Benchmark active: normalize portfolio to % change from first snapshot value
+    const portfolioPct =
+      firstPortfolioValue !== 0
+        ? parseFloat(((portfolioValues[i] / firstPortfolioValue - 1) * 100).toFixed(2))
+        : 0;
 
     const benchPrice = findClosestPrice(point.date, benchmarkPoints);
     const benchmarkPct =
