@@ -32,51 +32,7 @@ interface PortfolioChartProps {
   onSelectedLabelsChange?: (l: string[]) => void;
 }
 
-/** Custom tooltip — reads value from entry.payload[dataKey] (reliable in Recharts v3)
- *  rather than entry.value which can be stale or 0. */
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  hasBenchmark,
-  benchmarkTicker,
-  displayCurrency,
-}: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  active?: boolean; payload?: readonly any[]; label?: string | number;
-  hasBenchmark: boolean; benchmarkTicker: string | null; displayCurrency: Currency;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-md border bg-background p-2 text-xs shadow"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <p className="font-medium mb-1">{String(label ?? "")}</p>
-      {payload.map((entry: { dataKey: unknown; value: unknown; payload?: Record<string, unknown>; color?: string }, idx: number) => {
-        const key = String(entry.dataKey ?? "");
-        // Read from the raw data object — entry.value is unreliable in Recharts v3
-        const raw = entry.payload?.[key];
-        const val = typeof raw === "number" ? raw : typeof entry.value === "number" ? entry.value : null;
-        const isPortfolio = key === "portfolio";
-        const seriesLabel = isPortfolio ? "My Portfolio" : (benchmarkTicker ?? "Benchmark");
-        let formatted: string;
-        if (val === null || val === undefined) {
-          formatted = "—";
-        } else if (hasBenchmark) {
-          formatted = `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
-        } else {
-          formatted = `${val.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`;
-        }
-        return (
-          <p key={idx} style={{ color: entry.color ?? "var(--foreground)" }}>
-            {seriesLabel}: {formatted}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
+type MergedPoint = { date: string; portfolio: number; benchmark?: number };
 
 /** Find the benchmark price for a given date by picking the closest available entry within 10 days. */
 function findClosestPrice(targetDate: string, points: BenchmarkPoint[]): number | undefined {
@@ -93,7 +49,6 @@ function findClosestPrice(targetDate: string, points: BenchmarkPoint[]): number 
   }
   return minDiff <= 10 * 24 * 60 * 60 * 1000 ? closest.price : undefined;
 }
-
 
 export function PortfolioChart({
   displayCurrency,
@@ -118,6 +73,9 @@ export function PortfolioChart({
   const [searchingBenchmark, setSearchingBenchmark] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Tooltip: track active index via onMouseMove — Recharts v3 payload is unreliable
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const isControlled = controlledLabels !== undefined;
   const selectedLabels = isControlled ? controlledLabels : internalLabels;
@@ -247,7 +205,7 @@ export function PortfolioChart({
       : undefined;
 
   // Build merged chart data
-  const mergedData = chartData.map((point, i) => {
+  const mergedData: MergedPoint[] = chartData.map((point, i) => {
     const dateLabel = new Date(point.date).toLocaleDateString("en-GB", {
       month: "short",
       year: "numeric",
@@ -274,6 +232,32 @@ export function PortfolioChart({
 
     return { date: dateLabel, portfolio: portfolioPct, benchmark: benchmarkPct };
   });
+
+  // Build tooltip content from mergedData[activeIndex] — bypasses Recharts v3 payload issues
+  function renderTooltip() {
+    if (activeIndex === null || activeIndex < 0 || activeIndex >= mergedData.length) return null;
+    const pt = mergedData[activeIndex];
+    return (
+      <div
+        className="rounded-md border bg-background p-2 text-xs shadow pointer-events-none"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <p className="font-medium mb-1">{pt.date}</p>
+        <p style={{ color: "var(--primary)" }}>
+          My Portfolio:{" "}
+          {hasBenchmark
+            ? `${pt.portfolio >= 0 ? "+" : ""}${pt.portfolio.toFixed(2)}%`
+            : `${pt.portfolio.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`}
+        </p>
+        {hasBenchmark && pt.benchmark !== undefined && (
+          <p style={{ color: "#f97316" }}>
+            {benchmarkTicker ?? "Benchmark"}:{" "}
+            {`${pt.benchmark >= 0 ? "+" : ""}${pt.benchmark.toFixed(2)}%`}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -312,7 +296,7 @@ export function PortfolioChart({
         ))}
       </div>
 
-      {/* Row 2: Benchmark search — full width on mobile, inline on desktop */}
+      {/* Row 2: Benchmark search */}
       <div className="flex items-center gap-2 flex-wrap" ref={searchRef}>
         <span className="text-xs text-muted-foreground whitespace-nowrap">Compare with:</span>
         <div className="relative flex items-center gap-1">
@@ -416,7 +400,17 @@ export function PortfolioChart({
       <div className="border rounded-md p-2 sm:p-4">
         <div className="h-[200px] sm:h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={mergedData}>
+            <LineChart
+              data={mergedData}
+              onMouseMove={(state) => {
+                const idx = state?.activeTooltipIndex;
+                setActiveIndex((prev) => {
+                  const next = typeof idx === "number" ? idx : null;
+                  return prev !== next ? next : prev;
+                });
+              }}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="date"
@@ -432,16 +426,11 @@ export function PortfolioChart({
                     : value.toLocaleString("en", { maximumFractionDigits: 0 })
                 }
               />
+              {/* Tooltip only for the cursor line; content reads from mergedData[activeIndex] */}
               <Tooltip
                 isAnimationActive={false}
-                content={(props) => (
-                  <ChartTooltip
-                    {...props}
-                    hasBenchmark={hasBenchmark}
-                    benchmarkTicker={benchmarkTicker}
-                    displayCurrency={displayCurrency}
-                  />
-                )}
+                cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeDasharray: "3 3" }}
+                content={renderTooltip}
               />
               <Line
                 type="monotone"
