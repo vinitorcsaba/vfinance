@@ -17,6 +17,7 @@ class ChartDataPoint(BaseModel):
     total_ron: float
     total_eur: float
     total_usd: float
+    roi_percent: float | None = None  # Cash-flow-adjusted ROI from first snapshot in range
 
 
 class ChartDataResponse(BaseModel):

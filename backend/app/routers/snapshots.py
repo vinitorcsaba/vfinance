@@ -69,41 +69,91 @@ def get_chart_data(
         query = query.filter(Snapshot.taken_at >= cutoff_date)
     snapshots = query.all()
 
-    points = []
-    for snapshot in snapshots:
-        if not labels:
-            # No filter - sum all items in all currencies
-            total_ron = sum(item.value_ron for item in snapshot.items)
-            total_eur = sum(item.value_eur for item in snapshot.items)
-            total_usd = sum(item.value_usd for item in snapshot.items)
-        else:
-            # Filter by labels - sum values of matching items
-            total_ron = 0.0
-            total_eur = 0.0
-            total_usd = 0.0
-            for item in snapshot.items:
-                # Parse labels from JSON
-                item_labels = []
-                if item.labels:
-                    try:
-                        parsed = json.loads(item.labels)
-                        if isinstance(parsed, list):
-                            item_labels = [label["name"] for label in parsed if isinstance(label, dict) and "name" in label]
-                    except json.JSONDecodeError:
-                        # Fallback for old comma-separated format
-                        item_labels = [name.strip() for name in item.labels.split(",") if name.strip()]
+    def get_item_label_names(item) -> list[str]:
+        if not item.labels:
+            return []
+        try:
+            parsed = json.loads(item.labels)
+            if isinstance(parsed, list):
+                return [lbl["name"] for lbl in parsed if isinstance(lbl, dict) and "name" in lbl]
+        except json.JSONDecodeError:
+            return [n.strip() for n in item.labels.split(",") if n.strip()]
+        return []
 
-                # Check if item has ANY of the requested labels (OR logic)
-                if any(label in item_labels for label in labels):
-                    total_ron += item.value_ron
-                    total_eur += item.value_eur
-                    total_usd += item.value_usd
+    def item_matches(item) -> bool:
+        if not labels:
+            return True
+        return any(lbl in get_item_label_names(item) for lbl in labels)
+
+    def snapshot_value(snap):
+        ron = sum(item.value_ron for item in snap.items if item_matches(item))
+        eur = sum(item.value_eur for item in snap.items if item_matches(item))
+        usd = sum(item.value_usd for item in snap.items if item_matches(item))
+        return ron, eur, usd
+
+    # Pre-compute first snapshot values and fetch all transactions for rolling ROI
+    first_snap = snapshots[0] if snapshots else None
+    first_val_ron = 0.0
+    first_manual_ron: dict[str, float] = {}
+
+    if first_snap:
+        first_val_ron, _, _ = snapshot_value(first_snap)
+        first_manual_ron = {
+            item.name: item.value_ron
+            for item in first_snap.items
+            if item.holding_type == "manual" and item_matches(item)
+        }
+
+    # Fetch all transactions in range once for rolling ROI computation
+    all_tx_rows = []
+    if len(snapshots) > 1:
+        all_tx_rows = (
+            db.query(Transaction, StockHolding)
+            .join(StockHolding, Transaction.holding_id == StockHolding.id)
+            .filter(
+                Transaction.date > first_snap.taken_at.date(),
+                Transaction.date <= snapshots[-1].taken_at.date(),
+            )
+            .all()
+        )
+
+    points = []
+    for i, snapshot in enumerate(snapshots):
+        total_ron, total_eur, total_usd = snapshot_value(snapshot)
+
+        # Rolling cash-flow-adjusted ROI from first snapshot to this one
+        roi_percent: float | None = None
+        if i == 0:
+            roi_percent = 0.0
+        elif first_val_ron != 0:
+            # Stock cash flows up to this snapshot (strictly after first, up to current)
+            stock_flows_ron = sum(
+                tx.value_ron
+                for tx, holding in all_tx_rows
+                if tx.date <= snapshot.taken_at.date()
+                and tx.value_ron is not None
+                and (not labels or any(lbl in [l.name for l in holding.labels] for lbl in labels))
+            )
+            # Manual holding deltas from first snapshot to this one
+            cur_manual_ron = {
+                item.name: item.value_ron
+                for item in snapshot.items
+                if item.holding_type == "manual" and item_matches(item)
+            }
+            all_manual_names = set(first_manual_ron) | set(cur_manual_ron)
+            manual_delta_ron = sum(
+                cur_manual_ron.get(n, 0.0) - first_manual_ron.get(n, 0.0)
+                for n in all_manual_names
+            )
+            net_flows = stock_flows_ron + manual_delta_ron
+            roi_percent = round((total_ron - first_val_ron - net_flows) / first_val_ron * 100, 2)
 
         points.append(ChartDataPoint(
             date=snapshot.taken_at.isoformat(),
             total_ron=round(total_ron, 2),
             total_eur=round(total_eur, 2),
             total_usd=round(total_usd, 2),
+            roi_percent=roi_percent,
         ))
 
     return ChartDataResponse(points=points, labels_applied=labels)

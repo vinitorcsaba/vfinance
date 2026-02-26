@@ -4,7 +4,6 @@ import {
   Line,
   LineChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -33,24 +32,62 @@ interface PortfolioChartProps {
   onSelectedLabelsChange?: (l: string[]) => void;
 }
 
-/** Find the benchmark price for a given snapshot date by picking the closest available date. */
-function findClosestPrice(
-  targetDate: string,
-  benchmarkPoints: BenchmarkPoint[]
-): number | null {
-  if (benchmarkPoints.length === 0) return null;
+/** Find the benchmark price for a given date by picking the closest available entry within 10 days. */
+function findClosestPrice(targetDate: string, points: BenchmarkPoint[]): number | undefined {
+  if (points.length === 0) return undefined;
   const target = new Date(targetDate).getTime();
-  let closest = benchmarkPoints[0];
+  let closest = points[0];
   let minDiff = Math.abs(new Date(closest.date).getTime() - target);
-  for (const pt of benchmarkPoints) {
+  for (const pt of points) {
     const diff = Math.abs(new Date(pt.date).getTime() - target);
     if (diff < minDiff) {
       minDiff = diff;
       closest = pt;
     }
   }
-  // Only accept if within 10 days of the snapshot date
-  return minDiff <= 10 * 24 * 60 * 60 * 1000 ? closest.price : null;
+  return minDiff <= 10 * 24 * 60 * 60 * 1000 ? closest.price : undefined;
+}
+
+/** Custom tooltip rendered inside the chart — avoids Recharts v3 formatter type issues. */
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  hasBenchmark,
+  benchmarkTicker,
+  displayCurrency,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  active?: boolean; payload?: readonly any[]; label?: string | number;
+  hasBenchmark: boolean; benchmarkTicker: string | null; displayCurrency: Currency;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      className="rounded-md border bg-background p-2 text-xs shadow"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <p className="font-medium mb-1">{label}</p>
+      {payload.map((entry: { dataKey: string; value: number | undefined | null; color: string }) => {
+        const isPortfolio = entry.dataKey === "portfolio";
+        const seriesLabel = isPortfolio ? "My Portfolio" : (benchmarkTicker ?? "Benchmark");
+        const val = entry.value;
+        let formatted: string;
+        if (val === null || val === undefined) {
+          formatted = "—";
+        } else if (hasBenchmark) {
+          formatted = `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
+        } else {
+          formatted = `${val.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`;
+        }
+        return (
+          <p key={entry.dataKey} style={{ color: entry.color }}>
+            {seriesLabel}: {formatted}
+          </p>
+        );
+      })}
+    </div>
+  );
 }
 
 export function PortfolioChart({
@@ -100,7 +137,7 @@ export function PortfolioChart({
       .finally(() => setLoading(false));
   }, [selectedLabels, dateRange]);
 
-  // Reload benchmark when date range changes
+  // Reload benchmark when ticker or date range changes
   useEffect(() => {
     if (!benchmarkTicker) return;
     setBenchmarkLoading(true);
@@ -133,10 +170,9 @@ export function PortfolioChart({
     setSearchingBenchmark(true);
     setHighlightIndex(-1);
     try {
-      const res = await fetch(
-        `/api/v1/prices/search?q=${encodeURIComponent(q)}`,
-        { credentials: "include" }
-      );
+      const res = await fetch(`/api/v1/prices/search?q=${encodeURIComponent(q)}`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Search failed");
       const results: { ticker: string; name: string }[] = await res.json();
       setSuggestions(results.slice(0, 8));
@@ -154,7 +190,6 @@ export function PortfolioChart({
     setBenchmarkQuery(ticker);
     setShowSuggestions(false);
     setSuggestions([]);
-    // Fetch will happen via useEffect
   }
 
   function clearBenchmark() {
@@ -192,49 +227,41 @@ export function PortfolioChart({
     );
   };
 
-  // Build merged chart data
   const hasBenchmark = benchmarkTicker !== null && benchmarkPoints.length > 0;
 
-  const portfolioValues = chartData.map((point) => {
-    if (displayCurrency === "EUR") return point.total_eur;
-    if (displayCurrency === "USD") return point.total_usd;
-    return point.total_ron;
-  });
+  // Find first benchmark price aligned to first snapshot date (for % normalization)
+  const firstBenchPrice =
+    hasBenchmark && chartData.length > 0
+      ? findClosestPrice(chartData[0].date, benchmarkPoints)
+      : undefined;
 
-  const firstPortfolioValue = portfolioValues[0] ?? 0;
-
-  // When benchmark is active, normalize both to % change from start
-  const mergedData = chartData.map((point, i) => {
-    const portfolioValue = portfolioValues[i];
+  // Build merged chart data
+  const mergedData = chartData.map((point) => {
     const dateLabel = new Date(point.date).toLocaleDateString("en-GB", {
       month: "short",
       year: "numeric",
     });
 
     if (!hasBenchmark) {
-      return { date: dateLabel, portfolio: portfolioValue };
+      const value =
+        displayCurrency === "EUR"
+          ? point.total_eur
+          : displayCurrency === "USD"
+          ? point.total_usd
+          : point.total_ron;
+      return { date: dateLabel, portfolio: value };
     }
 
-    // Normalize portfolio to % change from first point
-    const portfolioPct =
-      firstPortfolioValue !== 0
-        ? parseFloat(((portfolioValue / firstPortfolioValue - 1) * 100).toFixed(2))
-        : 0;
+    // Benchmark active: portfolio uses cash-flow-adjusted ROI, benchmark uses simple % change
+    const portfolioPct = point.roi_percent ?? 0;
 
-    // Find closest benchmark price for this snapshot date
     const benchPrice = findClosestPrice(point.date, benchmarkPoints);
-    const firstBenchPrice = findClosestPrice(chartData[0]?.date ?? point.date, benchmarkPoints);
+    const benchmarkPct =
+      benchPrice !== undefined && firstBenchPrice !== undefined && firstBenchPrice !== 0
+        ? parseFloat(((benchPrice / firstBenchPrice - 1) * 100).toFixed(2))
+        : undefined;
 
-    let benchmarkPct: number | null = null;
-    if (benchPrice !== null && firstBenchPrice !== null && firstBenchPrice !== 0) {
-      benchmarkPct = parseFloat(((benchPrice / firstBenchPrice - 1) * 100).toFixed(2));
-    }
-
-    return {
-      date: dateLabel,
-      portfolio: portfolioPct,
-      benchmark: benchmarkPct,
-    };
+    return { date: dateLabel, portfolio: portfolioPct, benchmark: benchmarkPct };
   });
 
   if (loading) {
@@ -259,98 +286,84 @@ export function PortfolioChart({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Date range + benchmark search row */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          {(["3m", "6m", "1y", "all"] as DateRange[]).map((range) => (
-            <Button
-              key={range}
-              variant={dateRange === range ? "default" : "outline"}
-              size="sm"
-              onClick={() => onDateRangeChange(range)}
-            >
-              {range.toUpperCase()}
+    <div className="space-y-3">
+      {/* Row 1: Date range buttons */}
+      <div className="flex gap-2 flex-wrap">
+        {(["3m", "6m", "1y", "all"] as DateRange[]).map((range) => (
+          <Button
+            key={range}
+            variant={dateRange === range ? "default" : "outline"}
+            size="sm"
+            onClick={() => onDateRangeChange(range)}
+          >
+            {range.toUpperCase()}
+          </Button>
+        ))}
+      </div>
+
+      {/* Row 2: Benchmark search — full width on mobile, inline on desktop */}
+      <div className="flex items-center gap-2 flex-wrap" ref={searchRef}>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">Compare with:</span>
+        <div className="relative flex items-center gap-1">
+          <Input
+            className="h-8 w-44 sm:w-52 text-xs"
+            placeholder="Ticker or name (e.g. SPY, ^GSPC)…"
+            value={benchmarkQuery}
+            onChange={(e) => {
+              setBenchmarkQuery(e.target.value);
+              if (benchmarkTicker && e.target.value !== benchmarkTicker) {
+                setBenchmarkTicker(null);
+                setBenchmarkPoints([]);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (suggestions.length > 0) setShowSuggestions(true);
+            }}
+          />
+          {benchmarkTicker ? (
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={clearBenchmark}>
+              <XIcon className="size-3.5" />
             </Button>
-          ))}
-        </div>
-
-        {/* Benchmark search */}
-        <div className="flex items-center gap-2 ml-auto" ref={searchRef}>
-          <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-            Compare with:
-          </span>
-          <div className="relative">
-            <div className="flex items-center gap-1">
-              <Input
-                className="h-8 w-36 sm:w-44 text-xs"
-                placeholder="Ticker or name…"
-                value={benchmarkQuery}
-                onChange={(e) => {
-                  setBenchmarkQuery(e.target.value);
-                  if (benchmarkTicker && e.target.value !== benchmarkTicker) {
-                    // User is editing — clear current benchmark
-                    setBenchmarkTicker(null);
-                    setBenchmarkPoints([]);
-                  }
-                }}
-                onKeyDown={handleKeyDown}
-                onFocus={() => {
-                  if (suggestions.length > 0) setShowSuggestions(true);
-                }}
-              />
-              {benchmarkTicker ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0"
-                  onClick={clearBenchmark}
-                >
-                  <XIcon className="size-3.5" />
-                </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0"
+              disabled={benchmarkQuery.trim().length < 2 || searchingBenchmark}
+              onClick={handleBenchmarkSearch}
+            >
+              {searchingBenchmark ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 w-8 p-0"
-                  disabled={benchmarkQuery.trim().length < 2 || searchingBenchmark}
-                  onClick={handleBenchmarkSearch}
-                >
-                  {searchingBenchmark ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : (
-                    <SearchIcon className="size-3.5" />
-                  )}
-                </Button>
+                <SearchIcon className="size-3.5" />
               )}
-            </div>
+            </Button>
+          )}
 
-            {/* Suggestions dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-md border bg-background shadow-md">
-                {suggestions.map((result, i) => (
-                  <button
-                    key={result.ticker}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted ${
-                      i === highlightIndex ? "bg-muted" : ""
-                    }`}
-                    onMouseDown={() => selectBenchmark(result.ticker)}
-                  >
-                    <span className="font-mono font-semibold text-xs shrink-0">
-                      {result.ticker}
-                    </span>
-                    <span className="truncate text-muted-foreground text-xs">
-                      {result.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {benchmarkLoading && (
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+          {/* Suggestions dropdown */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-md border bg-background shadow-md">
+              {suggestions.map((result, i) => (
+                <button
+                  key={result.ticker}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted ${
+                    i === highlightIndex ? "bg-muted" : ""
+                  }`}
+                  onMouseDown={() => selectBenchmark(result.ticker)}
+                >
+                  <span className="font-mono font-semibold text-xs shrink-0 w-16 truncate">
+                    {result.ticker}
+                  </span>
+                  <span className="truncate text-muted-foreground text-xs">{result.name}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
+        {benchmarkLoading && (
+          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+        )}
       </div>
 
       {/* Label Filter */}
@@ -388,21 +401,6 @@ export function PortfolioChart({
         </div>
       )}
 
-      {/* Benchmark info badge */}
-      {hasBenchmark && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span
-            className="inline-block w-3 h-0.5 rounded"
-            style={{ backgroundColor: "#f97316", height: "2px" }}
-          />
-          <span>
-            {benchmarkTicker}
-            {benchmarkCurrency ? ` (${benchmarkCurrency})` : ""} — values normalized to % growth
-            from first snapshot date
-          </span>
-        </div>
-      )}
-
       {/* Chart */}
       <div className="border rounded-md p-2 sm:p-4">
         <div className="h-[200px] sm:h-[300px]">
@@ -424,44 +422,15 @@ export function PortfolioChart({
                 }
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--background)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={(value: any, name?: string) => {
-                  const num = typeof value === "number" ? value : null;
-                  if (num === null || num === undefined) return ["—", name];
-                  if (hasBenchmark) {
-                    const label =
-                      name === "portfolio"
-                        ? "My Portfolio"
-                        : benchmarkTicker ?? "Benchmark";
-                    return [
-                      `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`,
-                      label,
-                    ];
-                  }
-                  return [
-                    `${num.toLocaleString("en", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })} ${displayCurrency}`,
-                    "Portfolio",
-                  ];
-                }}
+                content={(props) => (
+                  <ChartTooltip
+                    {...props}
+                    hasBenchmark={hasBenchmark}
+                    benchmarkTicker={benchmarkTicker}
+                    displayCurrency={displayCurrency}
+                  />
+                )}
               />
-              {hasBenchmark && (
-                <Legend
-                  formatter={(value: string) =>
-                    value === "portfolio"
-                      ? "My Portfolio"
-                      : benchmarkTicker ?? "Benchmark"
-                  }
-                />
-              )}
               <Line
                 type="monotone"
                 dataKey="portfolio"
@@ -488,6 +457,28 @@ export function PortfolioChart({
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Legend when benchmark is active */}
+        {hasBenchmark && (
+          <div className="flex items-center gap-4 mt-2 justify-center text-xs text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-4 rounded"
+                style={{ height: "2px", backgroundColor: "var(--primary)" }}
+              />
+              <span>My Portfolio (cash-flow-adjusted ROI%)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <svg width="16" height="4" aria-hidden>
+                <line x1="0" y1="2" x2="16" y2="2" stroke="#f97316" strokeWidth="2" strokeDasharray="5 3" />
+              </svg>
+              <span>
+                {benchmarkTicker}
+                {benchmarkCurrency ? ` (${benchmarkCurrency})` : ""} — % change
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

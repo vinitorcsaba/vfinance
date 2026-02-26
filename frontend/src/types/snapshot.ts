@@ -68,6 +68,7 @@ export interface ChartDataPoint {
   total_ron: number;
   total_eur: number;
   total_usd: number;
+  roi_percent: number | null;
 }
 
 export interface ChartDataResponse {
