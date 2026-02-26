@@ -32,6 +32,52 @@ interface PortfolioChartProps {
   onSelectedLabelsChange?: (l: string[]) => void;
 }
 
+/** Custom tooltip — reads value from entry.payload[dataKey] (reliable in Recharts v3)
+ *  rather than entry.value which can be stale or 0. */
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  hasBenchmark,
+  benchmarkTicker,
+  displayCurrency,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  active?: boolean; payload?: readonly any[]; label?: string | number;
+  hasBenchmark: boolean; benchmarkTicker: string | null; displayCurrency: Currency;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      className="rounded-md border bg-background p-2 text-xs shadow"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <p className="font-medium mb-1">{String(label ?? "")}</p>
+      {payload.map((entry: { dataKey: unknown; value: unknown; payload?: Record<string, unknown>; color?: string }, idx: number) => {
+        const key = String(entry.dataKey ?? "");
+        // Read from the raw data object — entry.value is unreliable in Recharts v3
+        const raw = entry.payload?.[key];
+        const val = typeof raw === "number" ? raw : typeof entry.value === "number" ? entry.value : null;
+        const isPortfolio = key === "portfolio";
+        const seriesLabel = isPortfolio ? "My Portfolio" : (benchmarkTicker ?? "Benchmark");
+        let formatted: string;
+        if (val === null || val === undefined) {
+          formatted = "—";
+        } else if (hasBenchmark) {
+          formatted = `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
+        } else {
+          formatted = `${val.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`;
+        }
+        return (
+          <p key={idx} style={{ color: entry.color ?? "var(--foreground)" }}>
+            {seriesLabel}: {formatted}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Find the benchmark price for a given date by picking the closest available entry within 10 days. */
 function findClosestPrice(targetDate: string, points: BenchmarkPoint[]): number | undefined {
   if (points.length === 0) return undefined;
@@ -387,27 +433,15 @@ export function PortfolioChart({
                 }
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--background)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((value: unknown, name: unknown) => {
-                  const num = typeof value === "number" ? value : null;
-                  const key = String(name ?? "");
-                  if (num === null) return ["—", key];
-                  if (hasBenchmark) {
-                    const label = key === "portfolio" ? "My Portfolio" : (benchmarkTicker ?? "Benchmark");
-                    return [`${num >= 0 ? "+" : ""}${num.toFixed(2)}%`, label];
-                  }
-                  return [
-                    `${num.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`,
-                    "Portfolio",
-                  ];
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                }) as any}
+                isAnimationActive={false}
+                content={(props) => (
+                  <ChartTooltip
+                    {...props}
+                    hasBenchmark={hasBenchmark}
+                    benchmarkTicker={benchmarkTicker}
+                    displayCurrency={displayCurrency}
+                  />
+                )}
               />
               <Line
                 type="monotone"
