@@ -48,47 +48,6 @@ function findClosestPrice(targetDate: string, points: BenchmarkPoint[]): number 
   return minDiff <= 10 * 24 * 60 * 60 * 1000 ? closest.price : undefined;
 }
 
-/** Custom tooltip rendered inside the chart — avoids Recharts v3 formatter type issues. */
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  hasBenchmark,
-  benchmarkTicker,
-  displayCurrency,
-}: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  active?: boolean; payload?: readonly any[]; label?: string | number;
-  hasBenchmark: boolean; benchmarkTicker: string | null; displayCurrency: Currency;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-md border bg-background p-2 text-xs shadow"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <p className="font-medium mb-1">{label}</p>
-      {payload.map((entry: { dataKey: string; value: number | undefined | null; color: string }) => {
-        const isPortfolio = entry.dataKey === "portfolio";
-        const seriesLabel = isPortfolio ? "My Portfolio" : (benchmarkTicker ?? "Benchmark");
-        const val = entry.value;
-        let formatted: string;
-        if (val === null || val === undefined) {
-          formatted = "—";
-        } else if (hasBenchmark) {
-          formatted = `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
-        } else {
-          formatted = `${val.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`;
-        }
-        return (
-          <p key={entry.dataKey} style={{ color: entry.color }}>
-            {seriesLabel}: {formatted}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
 
 export function PortfolioChart({
   displayCurrency,
@@ -252,9 +211,12 @@ export function PortfolioChart({
       return { date: dateLabel, portfolio: portfolioValues[i] };
     }
 
-    // Benchmark active: normalize portfolio to % change from first snapshot value
+    // Benchmark active: use cash-flow-adjusted ROI from backend (matches ROI panel),
+    // fall back to simple % change if not available.
     const portfolioPct =
-      firstPortfolioValue !== 0
+      point.roi_percent !== null && point.roi_percent !== undefined
+        ? point.roi_percent
+        : firstPortfolioValue !== 0
         ? parseFloat(((portfolioValues[i] / firstPortfolioValue - 1) * 100).toFixed(2))
         : 0;
 
@@ -425,14 +387,27 @@ export function PortfolioChart({
                 }
               />
               <Tooltip
-                content={(props) => (
-                  <ChartTooltip
-                    {...props}
-                    hasBenchmark={hasBenchmark}
-                    benchmarkTicker={benchmarkTicker}
-                    displayCurrency={displayCurrency}
-                  />
-                )}
+                contentStyle={{
+                  backgroundColor: "var(--background)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: unknown, name: unknown) => {
+                  const num = typeof value === "number" ? value : null;
+                  const key = String(name ?? "");
+                  if (num === null) return ["—", key];
+                  if (hasBenchmark) {
+                    const label = key === "portfolio" ? "My Portfolio" : (benchmarkTicker ?? "Benchmark");
+                    return [`${num >= 0 ? "+" : ""}${num.toFixed(2)}%`, label];
+                  }
+                  return [
+                    `${num.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`,
+                    "Portfolio",
+                  ];
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                }) as any}
               />
               <Line
                 type="monotone"
