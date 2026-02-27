@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Line,
@@ -73,9 +73,6 @@ export function PortfolioChart({
   const [searchingBenchmark, setSearchingBenchmark] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  // Tooltip: track active index via onMouseMove — Recharts v3 payload is unreliable
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const isControlled = controlledLabels !== undefined;
   const selectedLabels = isControlled ? controlledLabels : internalLabels;
@@ -192,51 +189,51 @@ export function PortfolioChart({
 
   const hasBenchmark = benchmarkTicker !== null && benchmarkPoints.length > 0;
 
-  // Pre-compute portfolio absolute values in display currency
-  const portfolioValues = chartData.map((pt) =>
-    displayCurrency === "EUR" ? pt.total_eur : displayCurrency === "USD" ? pt.total_usd : pt.total_ron
-  );
-  const firstPortfolioValue = portfolioValues[0] ?? 0;
-
-  // Find first benchmark price aligned to first snapshot date (for % normalization)
-  const firstBenchPrice =
-    hasBenchmark && chartData.length > 0
-      ? findClosestPrice(chartData[0].date, benchmarkPoints)
-      : undefined;
-
-  // Build merged chart data
-  const mergedData: MergedPoint[] = chartData.map((point, i) => {
-    const dateLabel = new Date(point.date).toLocaleDateString("en-GB", {
-      month: "short",
-      year: "numeric",
-    });
-
-    if (!hasBenchmark) {
-      return { date: dateLabel, portfolio: portfolioValues[i] };
-    }
-
-    // Benchmark active: use cash-flow-adjusted ROI from backend (matches ROI panel),
-    // fall back to simple % change if not available.
-    const portfolioPct =
-      point.roi_percent !== null && point.roi_percent !== undefined
-        ? point.roi_percent
-        : firstPortfolioValue !== 0
-        ? parseFloat(((portfolioValues[i] / firstPortfolioValue - 1) * 100).toFixed(2))
-        : 0;
-
-    const benchPrice = findClosestPrice(point.date, benchmarkPoints);
-    const benchmarkPct =
-      benchPrice !== undefined && firstBenchPrice !== undefined && firstBenchPrice !== 0
-        ? parseFloat(((benchPrice / firstBenchPrice - 1) * 100).toFixed(2))
+  // Memoize mergedData so Recharts doesn't see a new `data` array on every render.
+  // If mergedData changed every render (e.g. from tooltip hover state updates), Recharts
+  // would reset its internal tooltip index, breaking hover values.
+  const mergedData = useMemo<MergedPoint[]>(() => {
+    const portfolioValues = chartData.map((pt) =>
+      displayCurrency === "EUR" ? pt.total_eur : displayCurrency === "USD" ? pt.total_usd : pt.total_ron
+    );
+    const firstPortfolioValue = portfolioValues[0] ?? 0;
+    const firstBenchPrice =
+      hasBenchmark && chartData.length > 0
+        ? findClosestPrice(chartData[0].date, benchmarkPoints)
         : undefined;
 
-    return { date: dateLabel, portfolio: portfolioPct, benchmark: benchmarkPct };
-  });
+    return chartData.map((point, i) => {
+      const dateLabel = new Date(point.date).toLocaleDateString("en-GB", {
+        month: "short",
+        year: "numeric",
+      });
 
-  // Build tooltip content from mergedData[activeIndex] — bypasses Recharts v3 payload issues
-  function renderTooltip() {
-    if (activeIndex === null || activeIndex < 0 || activeIndex >= mergedData.length) return null;
-    const pt = mergedData[activeIndex];
+      if (!hasBenchmark) {
+        return { date: dateLabel, portfolio: portfolioValues[i] };
+      }
+
+      const portfolioPct =
+        point.roi_percent !== null && point.roi_percent !== undefined
+          ? point.roi_percent
+          : firstPortfolioValue !== 0
+          ? parseFloat(((portfolioValues[i] / firstPortfolioValue - 1) * 100).toFixed(2))
+          : 0;
+
+      const benchPrice = findClosestPrice(point.date, benchmarkPoints);
+      const benchmarkPct =
+        benchPrice !== undefined && firstBenchPrice !== undefined && firstBenchPrice !== 0
+          ? parseFloat(((benchPrice / firstBenchPrice - 1) * 100).toFixed(2))
+          : undefined;
+
+      return { date: dateLabel, portfolio: portfolioPct, benchmark: benchmarkPct };
+    });
+  }, [chartData, displayCurrency, hasBenchmark, benchmarkPoints]);
+
+  // Tooltip reads payload[0].payload (the hovered data point) — stable since mergedData is memoized
+  const renderTooltip = useCallback(({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const pt = payload[0]?.payload as MergedPoint;
+    if (!pt) return null;
     return (
       <div
         className="rounded-md border bg-background p-2 text-xs shadow pointer-events-none"
@@ -257,7 +254,7 @@ export function PortfolioChart({
         )}
       </div>
     );
-  }
+  }, [hasBenchmark, displayCurrency, benchmarkTicker]);
 
   if (loading) {
     return (
@@ -400,17 +397,7 @@ export function PortfolioChart({
       <div className="border rounded-md p-2 sm:p-4">
         <div className="h-[200px] sm:h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={mergedData}
-              onMouseMove={(state) => {
-                const idx = state?.activeTooltipIndex;
-                setActiveIndex((prev) => {
-                  const next = typeof idx === "number" ? idx : null;
-                  return prev !== next ? next : prev;
-                });
-              }}
-              onMouseLeave={() => setActiveIndex(null)}
-            >
+            <LineChart data={mergedData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="date"
