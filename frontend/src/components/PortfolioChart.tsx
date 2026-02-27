@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Line,
@@ -73,6 +73,12 @@ export function PortfolioChart({
   const [searchingBenchmark, setSearchingBenchmark] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Custom tooltip: track hovered data index + mouse position independently of Recharts payload.
+  // Recharts v3 payload delivery is unreliable across browsers — we bypass it entirely.
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const mousePosRef = useRef({ x: 0, y: 0 });
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const isControlled = controlledLabels !== undefined;
   const selectedLabels = isControlled ? controlledLabels : internalLabels;
@@ -189,9 +195,9 @@ export function PortfolioChart({
 
   const hasBenchmark = benchmarkTicker !== null && benchmarkPoints.length > 0;
 
-  // Memoize mergedData so Recharts doesn't see a new `data` array on every render.
-  // If mergedData changed every render (e.g. from tooltip hover state updates), Recharts
-  // would reset its internal tooltip index, breaking hover values.
+  // Memoize mergedData so its array reference is stable while the user hovers.
+  // If mergedData were a new array on every render, Recharts would reset its internal
+  // chart state on every setHoveredIndex call, breaking the cursor and active dot.
   const mergedData = useMemo<MergedPoint[]>(() => {
     const portfolioValues = chartData.map((pt) =>
       displayCurrency === "EUR" ? pt.total_eur : displayCurrency === "USD" ? pt.total_usd : pt.total_ron
@@ -229,33 +235,6 @@ export function PortfolioChart({
     });
   }, [chartData, displayCurrency, hasBenchmark, benchmarkPoints]);
 
-  // Tooltip reads payload[0].payload (the hovered data point) — stable since mergedData is memoized
-  const renderTooltip = useCallback(({ active, payload }: any) => {
-    if (!active || !payload?.length) return null;
-    const pt = payload[0]?.payload as MergedPoint;
-    if (!pt) return null;
-    return (
-      <div
-        className="rounded-md border bg-background p-2 text-xs shadow pointer-events-none"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <p className="font-medium mb-1">{pt.date}</p>
-        <p style={{ color: "var(--primary)" }}>
-          My Portfolio:{" "}
-          {hasBenchmark
-            ? `${pt.portfolio >= 0 ? "+" : ""}${pt.portfolio.toFixed(2)}%`
-            : `${pt.portfolio.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`}
-        </p>
-        {hasBenchmark && pt.benchmark !== undefined && (
-          <p style={{ color: "#f97316" }}>
-            {benchmarkTicker ?? "Benchmark"}:{" "}
-            {`${pt.benchmark >= 0 ? "+" : ""}${pt.benchmark.toFixed(2)}%`}
-          </p>
-        )}
-      </div>
-    );
-  }, [hasBenchmark, displayCurrency, benchmarkTicker]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 border rounded-md">
@@ -276,6 +255,9 @@ export function PortfolioChart({
       </div>
     );
   }
+
+  // The hovered data point — used by our own tooltip div
+  const hoveredPoint = hoveredIndex !== null ? mergedData[hoveredIndex] ?? null : null;
 
   return (
     <div className="space-y-3">
@@ -395,9 +377,31 @@ export function PortfolioChart({
 
       {/* Chart */}
       <div className="border rounded-md p-2 sm:p-4">
-        <div className="h-[200px] sm:h-[300px]">
+        {/*
+          Wrapper is position:relative so our custom tooltip div can be absolute inside it.
+          onMouseMove updates the mouse position ref (no re-render) so the tooltip stays
+          positioned correctly when hoveredIndex state changes trigger a re-render.
+        */}
+        <div
+          ref={chartContainerRef}
+          className="relative h-[200px] sm:h-[300px]"
+          onMouseMove={(e) => {
+            const rect = chartContainerRef.current?.getBoundingClientRect();
+            if (rect) {
+              mousePosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            }
+          }}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={mergedData}>
+            <LineChart
+              data={mergedData}
+              onMouseMove={(state) => {
+                const idx = state?.activeTooltipIndex;
+                const next = typeof idx === "number" ? idx : null;
+                setHoveredIndex((prev) => (prev !== next ? next : prev));
+              }}
+              onMouseLeave={() => setHoveredIndex(null)}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="date"
@@ -413,16 +417,14 @@ export function PortfolioChart({
                     : value.toLocaleString("en", { maximumFractionDigits: 0 })
                 }
               />
-              {/* Tooltip only for the cursor line; content reads from mergedData[activeIndex] */}
+              {/* Keep Tooltip only for the vertical cursor line; content is empty */}
               <Tooltip
-                isAnimationActive={false}
+                content={() => null}
                 cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeDasharray: "3 3" }}
-                content={renderTooltip}
               />
               <Line
                 type="monotone"
                 dataKey="portfolio"
-                name="portfolio"
                 stroke="var(--primary)"
                 strokeWidth={2}
                 dot={{ fill: "var(--primary)", stroke: "var(--primary)", r: 4 }}
@@ -433,7 +435,6 @@ export function PortfolioChart({
                 <Line
                   type="monotone"
                   dataKey="benchmark"
-                  name="benchmark"
                   stroke="#f97316"
                   strokeWidth={2}
                   strokeDasharray="5 3"
@@ -444,6 +445,38 @@ export function PortfolioChart({
               )}
             </LineChart>
           </ResponsiveContainer>
+
+          {/* Our own tooltip — positioned by mouse coords, reads mergedData[hoveredIndex] directly */}
+          {hoveredPoint && (() => {
+            const { x, y } = mousePosRef.current;
+            const containerWidth = chartContainerRef.current?.offsetWidth ?? 0;
+            // Flip to left side when near right edge
+            const left = x + 130 > containerWidth ? x - 140 : x + 12;
+            const top = Math.max(0, y - 10);
+            return (
+              <div
+                className="absolute z-50 rounded-md border bg-background p-2 text-xs shadow pointer-events-none"
+                style={{ left, top, borderColor: "var(--border)" }}
+              >
+                <p className="font-medium mb-1">{hoveredPoint.date}</p>
+                <p style={{ color: "var(--primary)" }}>
+                  My Portfolio:{" "}
+                  {hasBenchmark
+                    ? `${hoveredPoint.portfolio >= 0 ? "+" : ""}${hoveredPoint.portfolio.toFixed(2)}%`
+                    : `${hoveredPoint.portfolio.toLocaleString("en", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} ${displayCurrency}`}
+                </p>
+                {hasBenchmark && hoveredPoint.benchmark !== undefined && (
+                  <p style={{ color: "#f97316" }}>
+                    {benchmarkTicker ?? "Benchmark"}:{" "}
+                    {`${hoveredPoint.benchmark >= 0 ? "+" : ""}${hoveredPoint.benchmark.toFixed(2)}%`}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Legend when benchmark is active */}
