@@ -79,6 +79,7 @@ export function PortfolioChart({
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const mousePosRef = useRef({ x: 0, y: 0 });
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const plotAreaRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
 
   const isControlled = controlledLabels !== undefined;
   const selectedLabels = isControlled ? controlledLabels : internalLabels;
@@ -386,21 +387,41 @@ export function PortfolioChart({
           ref={chartContainerRef}
           className="relative h-[200px] sm:h-[300px]"
           onMouseMove={(e) => {
-            const rect = chartContainerRef.current?.getBoundingClientRect();
-            if (rect) {
-              mousePosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            const containerRect = chartContainerRef.current?.getBoundingClientRect();
+            if (!containerRect) return;
+            const x = e.clientX - containerRect.left;
+            const y = e.clientY - containerRect.top;
+            mousePosRef.current = { x, y };
+            if (mergedData.length === 0) return;
+            // Locate the plot area via the cartesian grid element — avoids any dependency on
+            // Recharts internal state (activeTooltipIndex changed type in v3).
+            const gridEl = chartContainerRef.current?.querySelector(".recharts-cartesian-grid");
+            if (!gridEl) return;
+            const gridRect = gridEl.getBoundingClientRect();
+            const plotLeft = gridRect.left - containerRect.left;
+            const plotWidth = gridRect.width;
+            plotAreaRef.current = {
+              left: plotLeft,
+              top: gridRect.top - containerRect.top,
+              width: plotWidth,
+              height: gridRect.height,
+            };
+            const plotX = x - plotLeft;
+            if (plotX < 0 || plotX > plotWidth) {
+              setHoveredIndex(null);
+              return;
             }
+            const idx = Math.round((plotX / plotWidth) * (mergedData.length - 1));
+            setHoveredIndex((prev) => {
+              const next = idx >= 0 && idx < mergedData.length ? idx : null;
+              return prev !== next ? next : prev;
+            });
           }}
+          onMouseLeave={() => setHoveredIndex(null)}
         >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={mergedData}
-              onMouseMove={(state) => {
-                const idx = state?.activeTooltipIndex;
-                const next = typeof idx === "number" ? idx : null;
-                setHoveredIndex((prev) => (prev !== next ? next : prev));
-              }}
-              onMouseLeave={() => setHoveredIndex(null)}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
