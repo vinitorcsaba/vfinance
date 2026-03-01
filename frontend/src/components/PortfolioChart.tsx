@@ -32,7 +32,7 @@ interface PortfolioChartProps {
   onSelectedLabelsChange?: (l: string[]) => void;
 }
 
-type MergedPoint = { date: string; portfolio: number; benchmark?: number };
+type MergedPoint = { date: string; portfolio: number; benchmark?: number; portfolioValue?: number };
 
 /** Find the benchmark price for a given date by picking the closest available entry within 10 days. */
 function findClosestPrice(targetDate: string, points: BenchmarkPoint[]): number | undefined {
@@ -231,7 +231,7 @@ export function PortfolioChart({
           ? parseFloat(((benchPrice / firstBenchPrice - 1) * 100).toFixed(2))
           : undefined;
 
-      return { date: dateLabel, portfolio: portfolioPct, benchmark: benchmarkPct };
+      return { date: dateLabel, portfolio: portfolioPct, benchmark: benchmarkPct, portfolioValue: portfolioValues[i] };
     });
   }, [chartData, displayCurrency, hasBenchmark, benchmarkPoints]);
 
@@ -468,6 +468,16 @@ export function PortfolioChart({
                         maximumFractionDigits: 2,
                       })} ${displayCurrency}`}
                 </p>
+                {hasBenchmark && hoveredPoint.portfolioValue !== undefined && (
+                  <p className="text-muted-foreground">
+                    Value:{" "}
+                    {hoveredPoint.portfolioValue.toLocaleString("en", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    {displayCurrency}
+                  </p>
+                )}
                 {hasBenchmark && hoveredPoint.benchmark !== undefined && (
                   <p style={{ color: "#f97316" }}>
                     {benchmarkTicker ?? "Benchmark"}:{" "}
