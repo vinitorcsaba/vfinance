@@ -17,13 +17,24 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const DEV_USER: User = {
+  id: 0,
+  email: "dev@local",
+  name: "Dev User",
+  picture_url: null,
+  sheets_connected: false,
+  encryption_enabled: false,
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const bypassAuth = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+  const [user, setUser] = useState<User | null>(bypassAuth ? DEV_USER : null);
+  const [loading, setLoading] = useState(!bypassAuth);
   const [encryptionLocked, setEncryptionLocked] = useState(false);
 
   useEffect(() => {
+    if (bypassAuth) return;
     authApi
       .getMe()
       .then((u) => {
@@ -38,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [bypassAuth]);
 
   const login = useCallback(async (googleToken: string) => {
     queryClient.clear();

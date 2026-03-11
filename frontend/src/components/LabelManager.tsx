@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { PencilIcon, PlusIcon, Trash2Icon, CheckIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, CheckIcon, PencilIcon, PlusIcon, TagIcon, Trash2Icon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { getLabels, createLabel, updateLabel, deleteLabel } from "@/api/labels";
 import type { Label } from "@/types/labels";
@@ -13,9 +12,39 @@ const PRESET_COLORS = [
   "#8b5cf6", "#f43f5e", "#14b8a6", "#f97316", "#818cf8", "#84cc16",
 ];
 
+function ColorPicker({
+  value,
+  onChange,
+  size = "md",
+}: {
+  value: string;
+  onChange: (c: string) => void;
+  size?: "sm" | "md";
+}) {
+  const dot = size === "sm" ? "size-4" : "size-5";
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {PRESET_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          title={c}
+          className={`${dot} rounded-full transition-all hover:scale-110 focus:outline-none`}
+          style={{
+            backgroundColor: c,
+            boxShadow: c === value ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
+          }}
+          onClick={() => onChange(c)}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function LabelManager() {
   const [labels, setLabels] = useState<Label[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -32,7 +61,6 @@ export function LabelManager() {
     }
   }
 
-  // Fetch labels on mount to show accurate count even when collapsed
   useEffect(() => {
     if (!fetched.current) {
       fetched.current = true;
@@ -40,16 +68,13 @@ export function LabelManager() {
     }
   }, []);
 
-  function handleExpand() {
-    setExpanded(!expanded);
-  }
-
   async function handleCreate() {
     if (!newName.trim()) return;
     try {
       await createLabel({ name: newName.trim(), color: newColor });
       setNewName("");
       setNewColor(PRESET_COLORS[0]);
+      setCreating(false);
       setError("");
       await fetchLabels();
     } catch (err) {
@@ -59,7 +84,10 @@ export function LabelManager() {
 
   async function handleUpdate(id: number) {
     try {
-      await updateLabel(id, { name: editName.trim() || undefined, color: editColor || undefined });
+      await updateLabel(id, {
+        name: editName.trim() || undefined,
+        color: editColor || undefined,
+      });
       setEditingId(null);
       setError("");
       await fetchLabels();
@@ -78,119 +106,186 @@ export function LabelManager() {
     }
   }
 
+  function startCreate() {
+    setCreating(true);
+    setEditingId(null);
+    setNewName("");
+    setNewColor(PRESET_COLORS[0]);
+  }
+
+  function startEdit(label: Label) {
+    setEditingId(label.id);
+    setEditName(label.name);
+    setEditColor(label.color || PRESET_COLORS[0]);
+    setCreating(false);
+  }
+
   return (
-    <section className="space-y-3">
+    <div className="rounded-xl border bg-card overflow-hidden">
+      {/* ── Collapsible header ───────────────────────────────────────── */}
       <button
-        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        onClick={handleExpand}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors"
+        onClick={() => setExpanded((v) => !v)}
       >
-        <span className="text-xs">{expanded ? "▾" : "▸"}</span>
-        Labels ({labels.length})
+        <div className="flex items-center gap-2.5">
+          <TagIcon className="size-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Labels</span>
+          {labels.length > 0 && (
+            <span className="inline-flex items-center justify-center h-5 min-w-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold px-1.5">
+              {labels.length}
+            </span>
+          )}
+        </div>
+        {expanded ? (
+          <ChevronDownIcon className="size-4 text-muted-foreground" />
+        ) : (
+          <ChevronRightIcon className="size-4 text-muted-foreground" />
+        )}
       </button>
 
       {expanded && (
-        <div className="space-y-3 pl-4 border-l-2 border-muted">
-          {error && (
-            <p className="text-xs text-destructive">{error}</p>
+        <div className="border-t">
+          {/* ── Create form ──────────────────────────────────────────── */}
+          {creating ? (
+            <div className="px-4 py-3 bg-muted/20 border-b space-y-3">
+              <div className="flex items-center gap-2">
+                <div
+                  className="size-3 rounded-full shrink-0 ring-1 ring-border"
+                  style={{ backgroundColor: newColor }}
+                />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  New label
+                </span>
+              </div>
+              <Input
+                placeholder="Label name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                className="h-8 text-sm"
+                autoFocus
+              />
+              <ColorPicker value={newColor} onChange={setNewColor} />
+              {error && <p className="text-xs text-destructive">{error}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" className="h-7 text-xs" onClick={handleCreate}>
+                  <CheckIcon className="size-3" />
+                  Create
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => { setCreating(false); setError(""); }}
+                >
+                  <XIcon className="size-3" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-2 border-b">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5"
+                onClick={startCreate}
+              >
+                <PlusIcon className="size-3" />
+                New label
+              </Button>
+            </div>
           )}
 
-          {/* Create form */}
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="New label name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="h-8 text-sm w-40"
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            />
-            <div className="grid grid-cols-8 gap-1">
-              {PRESET_COLORS.map((c) => (
-                <button
-                  key={c}
-                  className="size-5 rounded-full border-2 transition-all"
-                  style={{
-                    backgroundColor: c,
-                    borderColor: c === newColor ? "white" : "transparent",
-                    boxShadow: c === newColor ? `0 0 0 2px ${c}` : "none",
-                  }}
-                  onClick={() => setNewColor(c)}
-                />
-              ))}
+          {/* ── Label list ───────────────────────────────────────────── */}
+          {labels.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No labels yet — create one to get started.
             </div>
-            <Button size="sm" variant="outline" className="h-8" onClick={handleCreate}>
-              <PlusIcon className="size-3" /> Add
-            </Button>
-          </div>
-
-          {/* Label list */}
-          <div className="flex flex-wrap gap-2">
-            {labels.map((label) =>
-              editingId === label.id ? (
-                <div key={label.id} className="flex items-center gap-1">
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="h-7 text-xs w-28"
-                    onKeyDown={(e) => e.key === "Enter" && handleUpdate(label.id)}
-                  />
-                  <div className="grid grid-cols-8 gap-0.5">
-                    {PRESET_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        className="size-4 rounded-full border"
-                        style={{
-                          backgroundColor: c,
-                          borderColor: c === editColor ? "white" : "transparent",
-                          boxShadow: c === editColor ? `0 0 0 1px ${c}` : "none",
-                        }}
-                        onClick={() => setEditColor(c)}
+          ) : (
+            <ul className="divide-y">
+              {labels.map((label) =>
+                editingId === label.id ? (
+                  /* Edit row */
+                  <li key={label.id} className="px-4 py-3 bg-muted/20 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="size-3 rounded-full shrink-0 ring-1 ring-border"
+                        style={{ backgroundColor: editColor }}
                       />
-                    ))}
-                  </div>
-                  <Button size="icon-xs" variant="ghost" onClick={() => handleUpdate(label.id)}>
-                    <CheckIcon className="size-3" />
-                  </Button>
-                  <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>
-                    <XIcon className="size-3" />
-                  </Button>
-                </div>
-              ) : (
-                <Badge
-                  key={label.id}
-                  variant="secondary"
-                  className="gap-1 pr-1"
-                  style={label.color ? { backgroundColor: label.color + "20", borderColor: label.color, color: label.color } : {}}
-                >
-                  {label.color && (
-                    <span className="size-2 rounded-full" style={{ backgroundColor: label.color }} />
-                  )}
-                  {label.name}
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    className="size-4 ml-0.5"
-                    onClick={() => {
-                      setEditingId(label.id);
-                      setEditName(label.name);
-                      setEditColor(label.color || PRESET_COLORS[0]);
-                    }}
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Edit label
+                      </span>
+                    </div>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleUpdate(label.id)}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <ColorPicker value={editColor} onChange={setEditColor} size="sm" />
+                    {error && <p className="text-xs text-destructive">{error}</p>}
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdate(label.id)}>
+                        <CheckIcon className="size-3" />
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => { setEditingId(null); setError(""); }}
+                      >
+                        <XIcon className="size-3" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </li>
+                ) : (
+                  /* Label row */
+                  <li
+                    key={label.id}
+                    className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
                   >
-                    <PencilIcon className="size-2.5" />
-                  </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    className="size-4"
-                    onClick={() => handleDelete(label.id)}
-                  >
-                    <Trash2Icon className="size-2.5 text-destructive" />
-                  </Button>
-                </Badge>
-              )
-            )}
-          </div>
+                    <span
+                      className="size-3 rounded-full shrink-0"
+                      style={{ backgroundColor: label.color ?? "#6b7280" }}
+                    />
+                    <span
+                      className="text-sm font-medium flex-1 truncate"
+                      style={label.color ? { color: label.color } : {}}
+                    >
+                      {label.name}
+                    </span>
+                    {/* Hover actions */}
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => startEdit(label)}
+                        title="Edit label"
+                      >
+                        <PencilIcon className="size-3" />
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        className="size-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(label.id)}
+                        title="Delete label"
+                      >
+                        <Trash2Icon className="size-3" />
+                      </Button>
+                    </div>
+                  </li>
+                )
+              )}
+            </ul>
+          )}
         </div>
       )}
-    </section>
+    </div>
   );
 }

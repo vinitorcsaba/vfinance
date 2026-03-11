@@ -1,8 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import { TagIcon, CheckIcon } from "lucide-react";
+import { CheckIcon, TagIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Popover,
   PopoverContent,
@@ -65,44 +64,79 @@ export function LabelAssignPopover({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-xs" title="Assign labels">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="size-6 text-muted-foreground hover:text-foreground"
+          title="Assign labels"
+        >
           <TagIcon className="size-3.5" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-2" align="end">
-        <p className="text-xs font-medium text-muted-foreground mb-2">Assign labels</p>
+      <PopoverContent className="w-52 p-0" align="end">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b">
+          <TagIcon className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold">Assign labels</span>
+        </div>
+
+        {/* Label list */}
         {allLabels.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2">No labels created yet.</p>
+          <p className="px-3 py-4 text-xs text-muted-foreground text-center">
+            No labels created yet.
+          </p>
         ) : (
-          <div className="space-y-1 max-h-48 overflow-y-auto">
-            {allLabels.map((label) => (
-              <button
-                key={label.id}
-                className="flex items-center gap-2 w-full rounded px-2 py-1 text-sm hover:bg-accent transition-colors"
-                onClick={() => toggle(label.id)}
-              >
-                <span
-                  className="flex items-center justify-center size-4 rounded border"
-                  style={selectedIds.has(label.id) ? {
-                    backgroundColor: label.color || "#2563eb",
-                    borderColor: label.color || "#2563eb",
-                  } : {}}
-                >
-                  {selectedIds.has(label.id) && (
-                    <CheckIcon className="size-3 text-white" />
-                  )}
-                </span>
-                {label.color && (
-                  <span className="size-2.5 rounded-full" style={{ backgroundColor: label.color }} />
-                )}
-                {label.name}
-              </button>
-            ))}
-          </div>
+          <ul className="py-1 max-h-52 overflow-y-auto">
+            {allLabels.map((label) => {
+              const checked = selectedIds.has(label.id);
+              return (
+                <li key={label.id}>
+                  <button
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/60 transition-colors"
+                    onClick={() => toggle(label.id)}
+                  >
+                    {/* Checkbox */}
+                    <span
+                      className="flex items-center justify-center size-4 rounded border-2 shrink-0 transition-colors"
+                      style={
+                        checked
+                          ? {
+                              backgroundColor: label.color ?? "#2563eb",
+                              borderColor: label.color ?? "#2563eb",
+                            }
+                          : { borderColor: "#d1d5db" }
+                      }
+                    >
+                      {checked && <CheckIcon className="size-2.5 text-white stroke-[3]" />}
+                    </span>
+                    {/* Color dot */}
+                    {label.color && (
+                      <span
+                        className="size-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: label.color }}
+                      />
+                    )}
+                    {/* Name */}
+                    <span className="truncate">{label.name}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
-        <div className="flex justify-end mt-2 pt-2 border-t">
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-3 py-2 border-t bg-muted/20">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </Button>
           <Button size="sm" className="h-7 text-xs" onClick={handleSave}>
-            Save
+            Apply
           </Button>
         </div>
       </PopoverContent>
@@ -110,20 +144,39 @@ export function LabelAssignPopover({
   );
 }
 
-export function LabelBadges({ labels }: { labels: { id: number; name: string; color: string | null }[] }) {
+export function LabelBadges({
+  labels,
+}: {
+  labels: { id: number; name: string; color: string | null }[];
+}) {
   if (labels.length === 0) return null;
   return (
-    <span className="inline-flex gap-1 ml-2">
+    <span className="inline-flex flex-wrap gap-1">
       {labels.map((l) => (
-        <Badge
+        <span
           key={l.id}
-          variant="secondary"
-          className="text-[10px] px-1.5 py-0"
-          style={l.color ? { backgroundColor: l.color + "20", borderColor: l.color, color: l.color } : {}}
+          className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none"
+          style={
+            l.color
+              ? {
+                  backgroundColor: l.color + "18",
+                  borderColor: l.color + "60",
+                  color: l.color,
+                }
+              : {
+                  backgroundColor: "hsl(var(--muted))",
+                  borderColor: "hsl(var(--border))",
+                }
+          }
         >
-          {l.color && <span className="size-1.5 rounded-full mr-0.5" style={{ backgroundColor: l.color }} />}
+          {l.color && (
+            <span
+              className="size-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: l.color }}
+            />
+          )}
           {l.name}
-        </Badge>
+        </span>
       ))}
     </span>
   );
