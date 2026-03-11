@@ -293,9 +293,9 @@ export function DashboardPage() {
       {/* Header with currency selector and refresh */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold">Portfolio Dashboard</h2>
+          <h2 className="text-xl font-bold tracking-tight">Dashboard</h2>
           <Select value={displayCurrency} onValueChange={handleCurrencyChange}>
-            <SelectTrigger size="sm" className="w-[90px]">
+            <SelectTrigger size="sm" className="w-[88px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -315,7 +315,7 @@ export function DashboardPage() {
             title="Group by currency"
           >
             <ListIcon className="size-4" />
-            Group
+            <span className="hidden sm:inline">Group</span>
           </Button>
           <Button
             variant="outline"
@@ -324,7 +324,7 @@ export function DashboardPage() {
             disabled={isFetching}
           >
             <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </div>
@@ -337,53 +337,56 @@ export function DashboardPage() {
         <>
           {/* Summary cards */}
           <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-0.5 px-2.5 pt-2.5 sm:px-6 sm:pt-6 sm:pb-2">
-                <CardTitle className="text-[10px] leading-tight sm:text-sm font-medium text-muted-foreground">
-                  Grand Total ({dc})
+            {/* Grand total — highlighted */}
+            <Card className="border-primary/25 bg-gradient-to-br from-primary/8 to-primary/4">
+              <CardHeader className="pb-0.5 px-3 pt-3 sm:px-5 sm:pt-5 sm:pb-1.5">
+                <CardTitle className="text-[10px] leading-tight sm:text-xs font-semibold text-primary/70 uppercase tracking-wider">
+                  Portfolio Total ({dc})
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2.5 pb-2.5 sm:px-6 sm:pb-6">
-                <p className="text-base leading-tight sm:text-2xl font-bold">{formatNumber(grandTotalDisplay)} {dc}</p>
+              <CardContent className="px-3 pb-3 sm:px-5 sm:pb-5">
+                <p className="text-xl leading-tight sm:text-3xl font-bold text-primary">
+                  {formatNumber(grandTotalDisplay)}{" "}
+                  <span className="text-base sm:text-lg font-semibold opacity-75">{dc}</span>
+                </p>
               </CardContent>
             </Card>
 
             {currency_totals.map((ct) => {
               const ctDisplay = convertFromRon(ct.total_ron, dc, fx_rates);
+              const accentColor = CURRENCY_COLORS[ct.currency] ?? CURRENCY_FALLBACK_COLOR;
 
               // Calculate the conversion rate from ct.currency to dc
-              // Rate represents: display currency per 1 unit of source currency
               let conversionRate: number | null = null;
               if (ct.currency !== dc) {
                 if (ct.currency === "RON") {
-                  // RON → other currency (e.g., RON → EUR)
-                  // fx_rates[dc] gives "RON per dc", so invert to get "dc per RON"
                   conversionRate = 1 / fx_rates[dc];
                 } else if (dc === "RON") {
-                  // Other currency → RON (e.g., EUR → RON)
-                  // fx_rates[ct.currency] gives "RON per ct.currency" which is correct
                   conversionRate = fx_rates[ct.currency];
                 } else {
-                  // Cross-currency (e.g., USD → EUR)
-                  // Rate = (dc per RON) / (ct.currency per RON) = dc per ct.currency
                   conversionRate = fx_rates[ct.currency] / fx_rates[dc];
                 }
               }
 
               return (
-                <Card key={ct.currency}>
-                  <CardHeader className="pb-0.5 px-2.5 pt-2.5 sm:px-6 sm:pt-6 sm:pb-2">
-                    <CardTitle className="text-[10px] leading-tight sm:text-sm font-medium text-muted-foreground">
-                      {ct.currency} Total
+                <Card
+                  key={ct.currency}
+                  className="overflow-hidden"
+                  style={{ borderLeftColor: accentColor, borderLeftWidth: "3px" }}
+                >
+                  <CardHeader className="pb-0.5 px-3 pt-3 sm:px-5 sm:pt-5 sm:pb-1.5">
+                    <CardTitle className="text-[10px] leading-tight sm:text-xs font-semibold uppercase tracking-wider" style={{ color: accentColor }}>
+                      {ct.currency} Holdings
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="px-2.5 pb-2.5 sm:px-6 sm:pb-6">
-                    <p className="text-sm leading-tight sm:text-xl font-semibold">
-                      {formatNumber(ct.total)} {ct.currency}
+                  <CardContent className="px-3 pb-3 sm:px-5 sm:pb-5">
+                    <p className="text-base leading-tight sm:text-xl font-bold">
+                      {formatNumber(ct.total)}{" "}
+                      <span className="text-sm font-medium text-muted-foreground">{ct.currency}</span>
                     </p>
                     {ct.currency !== dc && conversionRate && (
-                      <p className="text-[9px] leading-tight sm:text-sm text-muted-foreground mt-0.5">
-                        = {formatNumber(ctDisplay)} {dc}
+                      <p className="text-[9px] leading-tight sm:text-xs text-muted-foreground mt-0.5">
+                        ≈ {formatNumber(ctDisplay)} {dc}
                       </p>
                     )}
                   </CardContent>
@@ -394,9 +397,10 @@ export function DashboardPage() {
 
           {/* Pie chart */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Allocation ({dc} equivalent)
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">
+                Allocation
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">({dc} equivalent)</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -536,10 +540,8 @@ export function DashboardPage() {
 
           {/* Holdings table */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Holdings
-              </CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Holdings</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {/* Desktop: Table */}
