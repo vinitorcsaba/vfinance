@@ -510,7 +510,18 @@ export function DashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value) => `${formatNumber(Number(value))} ${dc}`}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const { name, value } = payload[0].payload as { name: string; value: number };
+                        const pct = pieTotal > 0 ? ((value / pieTotal) * 100).toFixed(1) : "0.0";
+                        return (
+                          <div className="rounded-lg border bg-card px-3 py-2 shadow-md text-xs">
+                            <p className="font-semibold mb-1">{name}</p>
+                            <p className="text-foreground">{formatNumber(value)} {dc}</p>
+                            <p className="text-muted-foreground">{pct}%</p>
+                          </div>
+                        );
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
