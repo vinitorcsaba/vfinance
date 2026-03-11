@@ -12,23 +12,6 @@ const PRESET_COLORS = [
   "#8b5cf6", "#f43f5e", "#14b8a6", "#f97316", "#818cf8", "#84cc16",
 ];
 
-const DEV_MOCK_LABELS: Label[] = [
-  { id: 1,  name: "Tech",          color: "#2563eb" },
-  { id: 2,  name: "Finance",       color: "#16a34a" },
-  { id: 3,  name: "Energy",        color: "#ea580c" },
-  { id: 4,  name: "Healthcare",    color: "#db2777" },
-  { id: 5,  name: "Real Estate",   color: "#7c3aed" },
-  { id: 6,  name: "Consumer",      color: "#0891b2" },
-  { id: 7,  name: "Dividend",      color: "#d97706" },
-  { id: 8,  name: "Growth",        color: "#059669" },
-  { id: 9,  name: "ETF",           color: "#4f46e5" },
-  { id: 10, name: "Crypto",        color: "#f43f5e" },
-  { id: 11, name: "Long-term",     color: "#14b8a6" },
-  { id: 12, name: "Speculative",   color: "#dc2626" },
-  { id: 13, name: "BET Index",     color: "#818cf8" },
-  { id: 14, name: "International", color: "#84cc16" },
-  { id: 15, name: "Watchlist",     color: "#f97316" },
-];
 
 function ColorPicker({
   value,
@@ -60,7 +43,6 @@ function ColorPicker({
 }
 
 export function LabelManager() {
-  const isDev = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
   const [labels, setLabels] = useState<Label[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -74,10 +56,9 @@ export function LabelManager() {
 
   async function fetchLabels() {
     try {
-      const result = await getLabels();
-      setLabels(result);
+      setLabels(await getLabels());
     } catch {
-      if (isDev) setLabels(DEV_MOCK_LABELS);
+      /* ignore */
     }
   }
 
