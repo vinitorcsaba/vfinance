@@ -12,6 +12,24 @@ const PRESET_COLORS = [
   "#8b5cf6", "#f43f5e", "#14b8a6", "#f97316", "#818cf8", "#84cc16",
 ];
 
+const DEV_MOCK_LABELS: Label[] = [
+  { id: 1,  name: "Tech",          color: "#2563eb" },
+  { id: 2,  name: "Finance",       color: "#16a34a" },
+  { id: 3,  name: "Energy",        color: "#ea580c" },
+  { id: 4,  name: "Healthcare",    color: "#db2777" },
+  { id: 5,  name: "Real Estate",   color: "#7c3aed" },
+  { id: 6,  name: "Consumer",      color: "#0891b2" },
+  { id: 7,  name: "Dividend",      color: "#d97706" },
+  { id: 8,  name: "Growth",        color: "#059669" },
+  { id: 9,  name: "ETF",           color: "#4f46e5" },
+  { id: 10, name: "Crypto",        color: "#f43f5e" },
+  { id: 11, name: "Long-term",     color: "#14b8a6" },
+  { id: 12, name: "Speculative",   color: "#dc2626" },
+  { id: 13, name: "BET Index",     color: "#818cf8" },
+  { id: 14, name: "International", color: "#84cc16" },
+  { id: 15, name: "Watchlist",     color: "#f97316" },
+];
+
 function ColorPicker({
   value,
   onChange,
@@ -42,6 +60,7 @@ function ColorPicker({
 }
 
 export function LabelManager() {
+  const isDev = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
   const [labels, setLabels] = useState<Label[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -55,9 +74,10 @@ export function LabelManager() {
 
   async function fetchLabels() {
     try {
-      setLabels(await getLabels());
+      const result = await getLabels();
+      setLabels(result);
     } catch {
-      /* ignore */
+      if (isDev) setLabels(DEV_MOCK_LABELS);
     }
   }
 
@@ -197,73 +217,36 @@ export function LabelManager() {
             </div>
           )}
 
-          {/* ── Label list ───────────────────────────────────────────── */}
+          {/* ── Label grid ───────────────────────────────────────────── */}
           {labels.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No labels yet — create one to get started.
             </div>
           ) : (
-            <ul className="divide-y">
-              {labels.map((label) =>
-                editingId === label.id ? (
-                  /* Edit row */
-                  <li key={label.id} className="px-4 py-3 bg-muted/20 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="size-3 rounded-full shrink-0 ring-1 ring-border"
-                        style={{ backgroundColor: editColor }}
-                      />
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Edit label
-                      </span>
-                    </div>
-                    <Input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleUpdate(label.id)}
-                      className="h-8 text-sm"
-                      autoFocus
-                    />
-                    <ColorPicker value={editColor} onChange={setEditColor} size="sm" />
-                    {error && <p className="text-xs text-destructive">{error}</p>}
-                    <div className="flex gap-2">
-                      <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdate(label.id)}>
-                        <CheckIcon className="size-3" />
-                        Save
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs"
-                        onClick={() => { setEditingId(null); setError(""); }}
-                      >
-                        <XIcon className="size-3" />
-                        Cancel
-                      </Button>
-                    </div>
-                  </li>
-                ) : (
-                  /* Label row */
-                  <li
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-border">
+                {labels.map((label) => (
+                  <div
                     key={label.id}
-                    className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
+                    className={`group flex items-center gap-2.5 px-3 py-2 bg-card hover:bg-muted/30 transition-colors ${
+                      editingId === label.id ? "bg-muted/40 ring-1 ring-inset ring-primary/40" : ""
+                    }`}
                   >
                     <span
-                      className="size-3 rounded-full shrink-0"
+                      className="size-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: label.color ?? "#6b7280" }}
                     />
                     <span
-                      className="text-sm font-medium flex-1 truncate"
+                      className="text-xs font-medium flex-1 truncate"
                       style={label.color ? { color: label.color } : {}}
                     >
                       {label.name}
                     </span>
-                    {/* Hover actions */}
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <Button
                         size="icon-xs"
                         variant="ghost"
-                        className="size-6 text-muted-foreground hover:text-foreground"
+                        className="size-5 text-muted-foreground hover:text-foreground"
                         onClick={() => startEdit(label)}
                         title="Edit label"
                       >
@@ -272,17 +255,59 @@ export function LabelManager() {
                       <Button
                         size="icon-xs"
                         variant="ghost"
-                        className="size-6 text-muted-foreground hover:text-destructive"
+                        className="size-5 text-muted-foreground hover:text-destructive"
                         onClick={() => handleDelete(label.id)}
                         title="Delete label"
                       >
                         <Trash2Icon className="size-3" />
                       </Button>
                     </div>
-                  </li>
-                )
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Inline edit form (below grid) ────────────────────── */}
+              {editingId !== null && (
+                <div className="px-4 py-3 bg-muted/20 border-t space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="size-3 rounded-full shrink-0 ring-1 ring-border"
+                      style={{ backgroundColor: editColor }}
+                    />
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Edit "{labels.find((l) => l.id === editingId)?.name}"
+                    </span>
+                  </div>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleUpdate(editingId);
+                      if (e.key === "Escape") { setEditingId(null); setError(""); }
+                    }}
+                    className="h-8 text-sm"
+                    autoFocus
+                  />
+                  <ColorPicker value={editColor} onChange={setEditColor} size="sm" />
+                  {error && <p className="text-xs text-destructive">{error}</p>}
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdate(editingId)}>
+                      <CheckIcon className="size-3" />
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => { setEditingId(null); setError(""); }}
+                    >
+                      <XIcon className="size-3" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
-            </ul>
+            </>
           )}
         </div>
       )}
