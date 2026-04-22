@@ -240,6 +240,14 @@ def init_user_db(email: str):
                         logger.info("Adding value_usd column to transactions")
                         conn.execute(text("ALTER TABLE transactions ADD COLUMN value_usd FLOAT"))
 
+                if "saved_label_filters" in table_names:
+                    slf_columns = [col["name"] for col in inspector.get_columns("saved_label_filters")]
+                    if "chart_mode" not in slf_columns:
+                        logger.info("Adding chart_mode column to saved_label_filters")
+                        conn.execute(text(
+                            "ALTER TABLE saved_label_filters ADD COLUMN chart_mode VARCHAR(10) NOT NULL DEFAULT 'holding'"
+                        ))
+
             logger.info(f"Manual schema updates completed for user {email}")
         except Exception as schema_error:
             logger.error(f"Failed to apply manual schema updates for user {email}: {schema_error}", exc_info=True)
