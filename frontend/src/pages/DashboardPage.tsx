@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon, FilterIcon, BookmarkIcon, Trash2Icon } from "lucide-react";
+import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon, FilterIcon, BookmarkIcon, Trash2Icon, EyeOffIcon, EyeIcon } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ type ChartMode = "holding" | "currency" | "label";
 const STORAGE_KEY_CURRENCY = "vfinance-display-currency";
 const STORAGE_KEY_GROUP = "vfinance-group-by-currency";
 const STORAGE_KEY_LABEL_FILTER = "vfinance-label-filter-mode";
+const STORAGE_KEY_HIDE_VALUES = "vfinance-hide-values";
 
 function formatNumber(n: number, decimals = 2): string {
   return n.toLocaleString("en", {
@@ -79,6 +80,9 @@ export function DashboardPage() {
   const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
   const [labelFilterMode, setLabelFilterMode] = useState<"AND" | "OR">(
     () => (localStorage.getItem(STORAGE_KEY_LABEL_FILTER) as "AND" | "OR") || "AND"
+  );
+  const [hideValues, setHideValues] = useState<boolean>(
+    () => localStorage.getItem(STORAGE_KEY_HIDE_VALUES) === "true"
   );
   const [saveFilterName, setSaveFilterName] = useState("");
   const [savePopoverOpen, setSavePopoverOpen] = useState(false);
@@ -367,6 +371,20 @@ export function DashboardPage() {
             <span className="hidden sm:inline">Group</span>
           </Button>
           <Button
+            variant={hideValues ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setHideValues((prev) => {
+                localStorage.setItem(STORAGE_KEY_HIDE_VALUES, String(!prev));
+                return !prev;
+              });
+            }}
+            title={hideValues ? "Show values" : "Hide values"}
+          >
+            {hideValues ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+            <span className="hidden sm:inline">{hideValues ? "Hidden" : "Hide"}</span>
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => refetch()}
@@ -385,7 +403,7 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Summary cards */}
-          <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+          {!hideValues && <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             {/* Grand total — highlighted */}
             <Card className="border-primary/25 bg-gradient-to-br from-primary/8 to-primary/4">
               <CardHeader className="pb-0.5 px-3 pt-3 sm:px-5 sm:pt-5 sm:pb-1.5">
@@ -442,7 +460,7 @@ export function DashboardPage() {
                 </Card>
               );
             })}
-          </div>
+          </div>}
 
           {/* Pie chart */}
           <Card>
@@ -632,7 +650,7 @@ export function DashboardPage() {
                         return (
                           <div className="rounded-lg border bg-card px-3 py-2 shadow-md text-xs">
                             <p className="font-semibold mb-1">{name}</p>
-                            <p className="text-foreground">{formatNumber(value)} {dc}</p>
+                            {!hideValues && <p className="text-foreground">{formatNumber(value)} {dc}</p>}
                             <p className="text-muted-foreground">{pct}%</p>
                           </div>
                         );
@@ -641,7 +659,7 @@ export function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              {selectedLabels.length > 0 && (
+              {selectedLabels.length > 0 && !hideValues && (
                 <p className="text-sm text-muted-foreground">
                   Showing: {formatNumber(pieTotal)} {dc} ({filteredHoldings.length} holding{filteredHoldings.length !== 1 ? "s" : ""})
                 </p>
@@ -656,7 +674,9 @@ export function DashboardPage() {
                     />
                     <span className="truncate">{d.name}</span>
                     <span className="ml-auto shrink-0 text-muted-foreground">
-                      {formatNumber(d.value)} {dc} ({pieTotal > 0 ? ((d.value / pieTotal) * 100).toFixed(1) : "0.0"}%)
+                      {hideValues
+                        ? `${pieTotal > 0 ? ((d.value / pieTotal) * 100).toFixed(1) : "0.0"}%`
+                        : `${formatNumber(d.value)} ${dc} (${pieTotal > 0 ? ((d.value / pieTotal) * 100).toFixed(1) : "0.0"}%)`}
                     </span>
                   </div>
                 ))}
@@ -665,7 +685,7 @@ export function DashboardPage() {
           </Card>
 
           {/* Holdings table */}
-          <Card>
+          {!hideValues && <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Holdings</CardTitle>
             </CardHeader>
@@ -809,7 +829,7 @@ export function DashboardPage() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
         </>
       )}
     </div>
