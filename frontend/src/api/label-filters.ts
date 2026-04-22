@@ -12,6 +12,7 @@ export async function createSavedFilter(data: {
   name: string;
   label_ids: number[];
   filter_mode: "AND" | "OR";
+  chart_mode: "holding" | "currency" | "label";
 }): Promise<SavedLabelFilter> {
   const res = await fetch(BASE, {
     method: "POST",

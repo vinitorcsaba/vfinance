@@ -8,6 +8,7 @@ class SavedLabelFilterCreate(BaseModel):
     name: str = Field(max_length=100)
     label_ids: list[int]
     filter_mode: Literal["AND", "OR"] = "AND"
+    chart_mode: Literal["holding", "currency", "label"] = "holding"
 
 
 class SavedLabelFilterUpdate(BaseModel):
@@ -19,4 +20,5 @@ class SavedLabelFilterResponse(BaseModel):
     name: str
     label_ids: list[int]
     filter_mode: str
+    chart_mode: str
     created_at: datetime

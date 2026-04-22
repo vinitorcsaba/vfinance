@@ -24,6 +24,7 @@ def _to_response(f: SavedLabelFilter) -> SavedLabelFilterResponse:
         name=f.name,
         label_ids=json.loads(f.label_ids),
         filter_mode=f.filter_mode,
+        chart_mode=f.chart_mode,
         created_at=f.created_at,
     )
 
@@ -40,6 +41,7 @@ def create_saved_filter(body: SavedLabelFilterCreate, db: Session = Depends(get_
         name=body.name,
         label_ids=json.dumps(body.label_ids),
         filter_mode=body.filter_mode,
+        chart_mode=body.chart_mode,
     )
     db.add(f)
     db.commit()

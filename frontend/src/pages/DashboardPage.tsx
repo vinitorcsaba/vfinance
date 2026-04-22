@@ -253,16 +253,18 @@ export function DashboardPage() {
   function applyFilter(filter: SavedLabelFilter) {
     setSelectedLabels(filter.label_ids);
     setLabelFilterMode(filter.filter_mode);
+    setChartMode(filter.chart_mode);
     localStorage.setItem(STORAGE_KEY_LABEL_FILTER, filter.filter_mode);
     setSavePopoverOpen(false);
   }
 
   function handleSaveFilter() {
-    if (!saveFilterName.trim() || selectedLabels.length === 0) return;
+    if (!saveFilterName.trim()) return;
     createFilterMutation.mutate({
       name: saveFilterName.trim(),
       label_ids: selectedLabels,
       filter_mode: labelFilterMode,
+      chart_mode: chartMode,
     });
   }
 
@@ -562,6 +564,9 @@ export function DashboardPage() {
                                 >
                                   {f.name}
                                 </button>
+                                <span className="shrink-0 text-[10px] text-muted-foreground border rounded px-1">
+                                  {f.chart_mode === "holding" ? "Holding" : f.chart_mode === "currency" ? "Currency" : "Label"}
+                                </span>
                                 <span className="shrink-0 text-[10px] font-mono text-muted-foreground border rounded px-1">
                                   {f.filter_mode}
                                 </span>
@@ -576,10 +581,9 @@ export function DashboardPage() {
                             ))}
                           </div>
                         )}
-                        {selectedLabels.length > 0 && (
-                          <>
-                            <div className="border-t my-2" />
-                            <p className="text-xs font-semibold mb-1.5">Save current selection</p>
+                        <>
+                          <div className="border-t my-2" />
+                          <p className="text-xs font-semibold mb-1.5">Save current selection</p>
                             <div className="flex gap-1.5">
                               <Input
                                 className="h-7 text-xs"
@@ -598,7 +602,6 @@ export function DashboardPage() {
                               </Button>
                             </div>
                           </>
-                        )}
                       </PopoverContent>
                     </Popover>
                   </>
