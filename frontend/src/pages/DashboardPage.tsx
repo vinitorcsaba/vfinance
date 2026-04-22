@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon, FilterIcon } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RefreshCwIcon, Loader2Icon, ListIcon, XIcon, FilterIcon, BookmarkIcon, Trash2Icon } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { LabelBadges } from "@/components/LabelAssignPopover";
 import { getPortfolio } from "@/api/portfolio";
+import { getSavedFilters, createSavedFilter, deleteSavedFilter } from "@/api/label-filters";
 import type { HoldingDetail } from "@/types/portfolio";
+import type { SavedLabelFilter } from "@/types/label-filter";
 
 const COLORS = [
   "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a",
@@ -72,11 +80,34 @@ export function DashboardPage() {
   const [labelFilterMode, setLabelFilterMode] = useState<"AND" | "OR">(
     () => (localStorage.getItem(STORAGE_KEY_LABEL_FILTER) as "AND" | "OR") || "AND"
   );
+  const [saveFilterName, setSaveFilterName] = useState("");
+  const [savePopoverOpen, setSavePopoverOpen] = useState(false);
+
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["portfolio"],
     queryFn: getPortfolio,
     staleTime: 60_000,
+  });
+
+  const { data: savedFilters = [] } = useQuery({
+    queryKey: ["saved-label-filters"],
+    queryFn: getSavedFilters,
+  });
+
+  const createFilterMutation = useMutation({
+    mutationFn: createSavedFilter,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-label-filters"] });
+      setSaveFilterName("");
+      setSavePopoverOpen(false);
+    },
+  });
+
+  const deleteFilterMutation = useMutation({
+    mutationFn: deleteSavedFilter,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["saved-label-filters"] }),
   });
 
   const holdings = useMemo(() => data?.holdings ?? [], [data]);
@@ -217,6 +248,22 @@ export function DashboardPage() {
     setSelectedLabels((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  }
+
+  function applyFilter(filter: SavedLabelFilter) {
+    setSelectedLabels(filter.label_ids);
+    setLabelFilterMode(filter.filter_mode);
+    localStorage.setItem(STORAGE_KEY_LABEL_FILTER, filter.filter_mode);
+    setSavePopoverOpen(false);
+  }
+
+  function handleSaveFilter() {
+    if (!saveFilterName.trim() || selectedLabels.length === 0) return;
+    createFilterMutation.mutate({
+      name: saveFilterName.trim(),
+      label_ids: selectedLabels,
+      filter_mode: labelFilterMode,
+    });
   }
 
   if (isLoading) {
@@ -489,6 +536,71 @@ export function DashboardPage() {
                         Clear
                       </button>
                     )}
+                    <Popover open={savePopoverOpen} onOpenChange={setSavePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-muted transition-colors"
+                          title="Saved filters"
+                        >
+                          <BookmarkIcon className="size-3" />
+                          {savedFilters.length > 0 && (
+                            <span className="text-muted-foreground">{savedFilters.length}</span>
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-3" align="start">
+                        <p className="text-xs font-semibold mb-2">Saved filters</p>
+                        {savedFilters.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No saved filters yet.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {savedFilters.map((f) => (
+                              <div key={f.id} className="flex items-center gap-1.5 group">
+                                <button
+                                  className="flex-1 text-left text-xs truncate hover:text-primary py-0.5"
+                                  onClick={() => applyFilter(f)}
+                                >
+                                  {f.name}
+                                </button>
+                                <span className="shrink-0 text-[10px] font-mono text-muted-foreground border rounded px-1">
+                                  {f.filter_mode}
+                                </span>
+                                <button
+                                  className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                                  onClick={() => deleteFilterMutation.mutate(f.id)}
+                                  title="Delete saved filter"
+                                >
+                                  <Trash2Icon className="size-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {selectedLabels.length > 0 && (
+                          <>
+                            <div className="border-t my-2" />
+                            <p className="text-xs font-semibold mb-1.5">Save current selection</p>
+                            <div className="flex gap-1.5">
+                              <Input
+                                className="h-7 text-xs"
+                                placeholder="Filter name..."
+                                value={saveFilterName}
+                                onChange={(e) => setSaveFilterName(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleSaveFilter()}
+                              />
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs px-2 shrink-0"
+                                disabled={!saveFilterName.trim() || createFilterMutation.isPending}
+                                onClick={handleSaveFilter}
+                              >
+                                Save
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </>
                 )}
               </div>
